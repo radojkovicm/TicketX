@@ -1,0 +1,1286 @@
+2025-06-10 11:57:22.553374: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 11:57:22.553374: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+2025-06-10 11:57:22.553374: Running on_exit tasks
+2025-06-10 11:57:22.553374: wfastcgi.py 3.0.0 closed
+2025-06-10 11:57:23.490902: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 11:57:23.506534: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+2025-06-10 11:57:23.506534: Running on_exit tasks
+2025-06-10 11:57:23.522156: wfastcgi.py 3.0.0 closed
+2025-06-10 11:57:24.365930: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 11:57:24.381560: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+2025-06-10 11:57:24.397187: Running on_exit tasks
+2025-06-10 11:57:24.397187: wfastcgi.py 3.0.0 closed
+2025-06-10 11:57:25.178474: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 11:57:25.194157: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+2025-06-10 11:57:25.209829: Running on_exit tasks
+2025-06-10 11:57:25.209829: wfastcgi.py 3.0.0 closed
+2025-06-10 11:57:26.178494: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 11:57:26.194199: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+2025-06-10 11:57:26.209764: Running on_exit tasks
+2025-06-10 11:57:26.209764: wfastcgi.py 3.0.0 closed
+2025-06-10 11:58:13.208830: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 11:58:13.208830: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+2025-06-10 11:58:13.224466: Running on_exit tasks
+2025-06-10 11:58:13.240084: wfastcgi.py 3.0.0 closed
+2025-06-10 11:58:14.146356: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 11:58:14.146356: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+2025-06-10 11:58:14.161986: Running on_exit tasks
+2025-06-10 11:58:14.177607: wfastcgi.py 3.0.0 closed
+2025-06-10 11:58:14.677624: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 11:58:14.693245: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+2025-06-10 11:58:14.708870: Running on_exit tasks
+2025-06-10 11:58:14.708870: wfastcgi.py 3.0.0 closed
+2025-06-10 11:58:14.990126: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 11:58:15.005756: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+2025-06-10 11:58:15.021381: Running on_exit tasks
+2025-06-10 11:58:15.021381: wfastcgi.py 3.0.0 closed
+2025-06-10 11:58:16.789782: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 11:58:16.805438: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+2025-06-10 11:58:16.821037: Running on_exit tasks
+2025-06-10 11:58:16.821037: wfastcgi.py 3.0.0 closed
+2025-06-10 11:59:03.668347: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 11:59:03.683979: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+2025-06-10 11:59:03.683979: Running on_exit tasks
+2025-06-10 11:59:03.699602: wfastcgi.py 3.0.0 closed
+2025-06-10 11:59:08.764250: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 11:59:08.764250: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+2025-06-10 11:59:08.779874: Running on_exit tasks
+2025-06-10 11:59:08.795499: wfastcgi.py 3.0.0 closed
+2025-06-10 12:02:01.298950: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 12:02:01.314579: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+2025-06-10 12:02:01.314579: Running on_exit tasks
+2025-06-10 12:02:01.330200: wfastcgi.py 3.0.0 closed
+2025-06-10 12:02:56.385821: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 12:02:56.401459: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+2025-06-10 12:02:56.417065: Running on_exit tasks
+2025-06-10 12:02:56.417065: wfastcgi.py 3.0.0 closed
+2025-06-10 12:02:56.635884: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 12:02:56.651474: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+2025-06-10 12:02:56.651474: Running on_exit tasks
+2025-06-10 12:02:56.651474: wfastcgi.py 3.0.0 closed
+2025-06-10 12:02:57.354699: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 12:02:57.354699: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+2025-06-10 12:02:57.370326: Running on_exit tasks
+2025-06-10 12:02:57.385950: wfastcgi.py 3.0.0 closed
+2025-06-10 12:02:57.651609: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 12:02:57.667251: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+2025-06-10 12:02:57.682865: Running on_exit tasks
+2025-06-10 12:02:57.682865: wfastcgi.py 3.0.0 closed
+2025-06-10 12:02:58.042304: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 12:02:58.057923: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+2025-06-10 12:02:58.073559: Running on_exit tasks
+2025-06-10 12:02:58.073559: wfastcgi.py 3.0.0 closed
+2025-06-10 12:03:43.113399: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 12:03:43.129037: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+2025-06-10 12:03:43.144715: Running on_exit tasks
+2025-06-10 12:03:43.160291: wfastcgi.py 3.0.0 closed
+2025-06-10 12:04:06.396184: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 123
+    query_assigned = f"""
+            SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+                c.name as category_name, u.full_name as created_by_name,
+                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+            FROM tickets t
+            LEFT JOIN categories c ON t.category_id = c.id
+            LEFT JOIN users u ON t.created_by = u.id
+            LEFT JOIN users a ON t.assigned_to = a.id
+            WHERE t.assigned_to = ? AND {status_condition}
+            ORDER BY {order_by}
+        """
+                         
+                                                                                                                            
+                                                                        
+                                                                                                 
+                          
+                                                          
+                                                    
+                                                     
+                                                          
+                               
+          ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 12:04:06.396184: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 123
+    query_assigned = f"""
+            SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+                c.name as category_name, u.full_name as created_by_name,
+                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+            FROM tickets t
+            LEFT JOIN categories c ON t.category_id = c.id
+            LEFT JOIN users u ON t.created_by = u.id
+            LEFT JOIN users a ON t.assigned_to = a.id
+            WHERE t.assigned_to = ? AND {status_condition}
+            ORDER BY {order_by}
+        """
+                         
+                                                                                                                            
+                                                                        
+                                                                                                 
+                          
+                                                          
+                                                    
+                                                     
+                                                          
+                               
+          ^
+SyntaxError: invalid syntax
+2025-06-10 12:04:06.411819: Running on_exit tasks
+2025-06-10 12:04:06.427456: wfastcgi.py 3.0.0 closed
+2025-06-10 12:06:00.554345: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 123
+    query_assigned = f"""
+            SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+                c.name as category_name, u.full_name as created_by_name,
+                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+            FROM tickets t
+            LEFT JOIN categories c ON t.category_id = c.id
+            LEFT JOIN users u ON t.created_by = u.id
+            LEFT JOIN users a ON t.assigned_to = a.id
+            WHERE t.assigned_to = ? AND {status_condition}
+            ORDER BY {order_by}
+        """
+                         
+                                                                                                                            
+                                                                        
+                                                                                                 
+                          
+                                                          
+                                                    
+                                                     
+                                                          
+                               
+          ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 12:06:00.554345: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 123
+    query_assigned = f"""
+            SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+                c.name as category_name, u.full_name as created_by_name,
+                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+            FROM tickets t
+            LEFT JOIN categories c ON t.category_id = c.id
+            LEFT JOIN users u ON t.created_by = u.id
+            LEFT JOIN users a ON t.assigned_to = a.id
+            WHERE t.assigned_to = ? AND {status_condition}
+            ORDER BY {order_by}
+        """
+                         
+                                                                                                                            
+                                                                        
+                                                                                                 
+                          
+                                                          
+                                                    
+                                                     
+                                                          
+                               
+          ^
+SyntaxError: invalid syntax
+2025-06-10 12:06:00.569979: Running on_exit tasks
+2025-06-10 12:06:00.585581: wfastcgi.py 3.0.0 closed
+2025-06-10 12:22:17.510380: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 123
+    query_assigned = f"""
+            SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+                c.name as category_name, u.full_name as created_by_name,
+                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+            FROM tickets t
+            LEFT JOIN categories c ON t.category_id = c.id
+            LEFT JOIN users u ON t.created_by = u.id
+            LEFT JOIN users a ON t.assigned_to = a.id
+            WHERE t.assigned_to = ? AND {status_condition}
+            ORDER BY {order_by}
+        """
+                         
+                                                                                                                            
+                                                                        
+                                                                                                 
+                          
+                                                          
+                                                    
+                                                     
+                                                          
+                               
+          ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 12:22:17.526002: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 123
+    query_assigned = f"""
+            SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+                c.name as category_name, u.full_name as created_by_name,
+                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+            FROM tickets t
+            LEFT JOIN categories c ON t.category_id = c.id
+            LEFT JOIN users u ON t.created_by = u.id
+            LEFT JOIN users a ON t.assigned_to = a.id
+            WHERE t.assigned_to = ? AND {status_condition}
+            ORDER BY {order_by}
+        """
+                         
+                                                                                                                            
+                                                                        
+                                                                                                 
+                          
+                                                          
+                                                    
+                                                     
+                                                          
+                               
+          ^
+SyntaxError: invalid syntax
+2025-06-10 12:22:17.541631: Running on_exit tasks
+2025-06-10 12:22:17.557282: wfastcgi.py 3.0.0 closed
+2025-06-10 12:35:26.781112: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 123
+    query_assigned = f"""
+            SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+                c.name as category_name, u.full_name as created_by_name,
+                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+            FROM tickets t
+            LEFT JOIN categories c ON t.category_id = c.id
+            LEFT JOIN users u ON t.created_by = u.id
+            LEFT JOIN users a ON t.assigned_to = a.id
+            WHERE t.assigned_to = ? AND {status_condition}
+            ORDER BY {order_by}
+        """
+                         
+                                                                                                                            
+                                                                        
+                                                                                                 
+                          
+                                                          
+                                                    
+                                                     
+                                                          
+                               
+          ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 12:35:26.796739: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 123
+    query_assigned = f"""
+            SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+                c.name as category_name, u.full_name as created_by_name,
+                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+            FROM tickets t
+            LEFT JOIN categories c ON t.category_id = c.id
+            LEFT JOIN users u ON t.created_by = u.id
+            LEFT JOIN users a ON t.assigned_to = a.id
+            WHERE t.assigned_to = ? AND {status_condition}
+            ORDER BY {order_by}
+        """
+                         
+                                                                                                                            
+                                                                        
+                                                                                                 
+                          
+                                                          
+                                                    
+                                                     
+                                                          
+                               
+          ^
+SyntaxError: invalid syntax
+2025-06-10 12:35:26.812362: Running on_exit tasks
+2025-06-10 12:35:26.812362: wfastcgi.py 3.0.0 closed
+2025-06-10 12:37:13.280352: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 12:37:13.295986: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+2025-06-10 12:37:13.295986: Running on_exit tasks
+2025-06-10 12:37:13.311606: wfastcgi.py 3.0.0 closed
+2025-06-10 12:46:24.668128: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+                   ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 616, in get_wsgi_handler
+    raise ValueError('"%s" could not be imported%s' % (handler_name, last_tb))
+ValueError: "app.app" could not be imported: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File "G:\www\TicketX\app.py", line 1, in <module>
+    from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+ModuleNotFoundError: No module named 'flask'
+
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 12:46:24.682469: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+                   ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 616, in get_wsgi_handler
+    raise ValueError('"%s" could not be imported%s' % (handler_name, last_tb))
+ValueError: "app.app" could not be imported: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\Lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File "G:\www\TicketX\app.py", line 1, in <module>
+    from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+ModuleNotFoundError: No module named 'flask'
+
+2025-06-10 12:46:24.693007: Running on_exit tasks
+2025-06-10 12:46:24.693522: wfastcgi.py 3.0.0 closed
+2025-06-10 12:50:41.075217: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 12:50:41.090823: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+2025-06-10 12:50:41.106442: Running on_exit tasks
+2025-06-10 12:50:41.106442: wfastcgi.py 3.0.0 closed
+2025-06-10 12:50:42.183877: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 12:50:42.183877: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File ".\app.py", line 47
+    flash(f'Welcome, {user[4]}!', 'success')
+                               ^
+SyntaxError: invalid syntax
+2025-06-10 12:50:42.199490: Running on_exit tasks
+2025-06-10 12:50:42.215107: wfastcgi.py 3.0.0 closed
+2025-06-10 12:55:54.372533: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+                   ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 616, in get_wsgi_handler
+    raise ValueError('"%s" could not be imported%s' % (handler_name, last_tb))
+ValueError: "app.app" could not be imported: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File "G:\www\TicketX\app.py", line 9, in <module>
+    import pandas as pd
+ModuleNotFoundError: No module named 'pandas'
+
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 12:55:54.384812: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+                   ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 616, in get_wsgi_handler
+    raise ValueError('"%s" could not be imported%s' % (handler_name, last_tb))
+ValueError: "app.app" could not be imported: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File "G:\www\TicketX\app.py", line 9, in <module>
+    import pandas as pd
+ModuleNotFoundError: No module named 'pandas'
+
+2025-06-10 12:55:54.395560: Running on_exit tasks
+2025-06-10 12:55:54.405420: wfastcgi.py 3.0.0 closed
+2025-06-10 12:55:55.635850: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+                   ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 616, in get_wsgi_handler
+    raise ValueError('"%s" could not be imported%s' % (handler_name, last_tb))
+ValueError: "app.app" could not be imported: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File "G:\www\TicketX\app.py", line 9, in <module>
+    import pandas as pd
+ModuleNotFoundError: No module named 'pandas'
+
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 12:55:55.645901: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+                   ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 616, in get_wsgi_handler
+    raise ValueError('"%s" could not be imported%s' % (handler_name, last_tb))
+ValueError: "app.app" could not be imported: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File "G:\www\TicketX\app.py", line 9, in <module>
+    import pandas as pd
+ModuleNotFoundError: No module named 'pandas'
+
+2025-06-10 12:55:55.656558: Running on_exit tasks
+2025-06-10 12:55:55.656999: wfastcgi.py 3.0.0 closed
+2025-06-10 13:00:22.625018: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+                   ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 616, in get_wsgi_handler
+    raise ValueError('"%s" could not be imported%s' % (handler_name, last_tb))
+ValueError: "app.app" could not be imported: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File "G:\www\TicketX\app.py", line 9, in <module>
+    import pandas as pd
+ModuleNotFoundError: No module named 'pandas'
+
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 13:00:22.636692: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+                   ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 616, in get_wsgi_handler
+    raise ValueError('"%s" could not be imported%s' % (handler_name, last_tb))
+ValueError: "app.app" could not be imported: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File "G:\www\TicketX\app.py", line 9, in <module>
+    import pandas as pd
+ModuleNotFoundError: No module named 'pandas'
+
+2025-06-10 13:00:22.648015: Running on_exit tasks
+2025-06-10 13:00:22.659404: wfastcgi.py 3.0.0 closed
+2025-06-10 13:00:47.033124: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+                   ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 616, in get_wsgi_handler
+    raise ValueError('"%s" could not be imported%s' % (handler_name, last_tb))
+ValueError: "app.app" could not be imported: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File "G:\www\TicketX\app.py", line 9, in <module>
+    import pandas as pd
+ModuleNotFoundError: No module named 'pandas'
+
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 13:00:47.045411: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+                   ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 616, in get_wsgi_handler
+    raise ValueError('"%s" could not be imported%s' % (handler_name, last_tb))
+ValueError: "app.app" could not be imported: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File "G:\www\TicketX\app.py", line 9, in <module>
+    import pandas as pd
+ModuleNotFoundError: No module named 'pandas'
+
+2025-06-10 13:00:47.056711: Running on_exit tasks
+2025-06-10 13:00:47.067130: wfastcgi.py 3.0.0 closed
+2025-06-10 13:03:19.911796: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+                   ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 616, in get_wsgi_handler
+    raise ValueError('"%s" could not be imported%s' % (handler_name, last_tb))
+ValueError: "app.app" could not be imported: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File "G:\www\TicketX\app.py", line 9, in <module>
+    import pandas as pd
+ModuleNotFoundError: No module named 'pandas'
+
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 13:03:19.923311: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+                   ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 616, in get_wsgi_handler
+    raise ValueError('"%s" could not be imported%s' % (handler_name, last_tb))
+ValueError: "app.app" could not be imported: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File "G:\www\TicketX\app.py", line 9, in <module>
+    import pandas as pd
+ModuleNotFoundError: No module named 'pandas'
+
+2025-06-10 13:03:19.933415: Running on_exit tasks
+2025-06-10 13:03:19.943348: wfastcgi.py 3.0.0 closed
+2025-06-10 13:04:31.983281: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+                   ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 616, in get_wsgi_handler
+    raise ValueError('"%s" could not be imported%s' % (handler_name, last_tb))
+ValueError: "app.app" could not be imported: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File "G:\www\TicketX\app.py", line 9, in <module>
+    import pandas as pd
+ModuleNotFoundError: No module named 'pandas'
+
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 13:04:31.995115: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+                   ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 616, in get_wsgi_handler
+    raise ValueError('"%s" could not be imported%s' % (handler_name, last_tb))
+ValueError: "app.app" could not be imported: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File "G:\www\TicketX\app.py", line 9, in <module>
+    import pandas as pd
+ModuleNotFoundError: No module named 'pandas'
+
+2025-06-10 13:04:32.005805: Running on_exit tasks
+2025-06-10 13:04:32.016433: wfastcgi.py 3.0.0 closed
+2025-06-10 13:04:33.065258: Error occurred while reading WSGI handler:
+
+Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+                   ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 616, in get_wsgi_handler
+    raise ValueError('"%s" could not be imported%s' % (handler_name, last_tb))
+ValueError: "app.app" could not be imported: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File "G:\www\TicketX\app.py", line 9, in <module>
+    import pandas as pd
+ModuleNotFoundError: No module named 'pandas'
+
+
+
+StdOut: 
+
+StdErr: 
+2025-06-10 13:04:33.075549: Unhandled exception in wfastcgi.py: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 791, in main
+    env, handler = read_wsgi_handler(response.physical_path)
+                   ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 633, in read_wsgi_handler
+    handler = get_wsgi_handler(os.getenv("WSGI_HANDLER"))
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 616, in get_wsgi_handler
+    raise ValueError('"%s" could not be imported%s' % (handler_name, last_tb))
+ValueError: "app.app" could not be imported: Traceback (most recent call last):
+  File "G:\www\TicketX\venv\lib\site-packages\wfastcgi.py", line 600, in get_wsgi_handler
+    handler = __import__(module_name, fromlist=[name_list[0][0]])
+  File "G:\www\TicketX\app.py", line 9, in <module>
+    import pandas as pd
+ModuleNotFoundError: No module named 'pandas'
+
+2025-06-10 13:04:33.085678: Running on_exit tasks
+2025-06-10 13:04:33.086125: wfastcgi.py 3.0.0 closed
+2025-06-10 13:20:42.023960: wfastcgi.py will restart when files in G:\www\TicketX\ are changed: .*((\.py)|(\.config))$
+2025-06-10 13:20:42.026557: wfastcgi.py 3.0.0 initialized
+2025-06-10 13:23:06.925350: wfastcgi.py exiting because web.config has changed, matching .*((\.py)|(\.config))$
+2025-06-10 13:23:06.926064: Running on_exit tasks
+2025-06-10 13:23:16.245586: wfastcgi.py will restart when files in G:\www\TicketX\ are changed: .*((\.py)|(\.config))$
+2025-06-10 13:23:16.246248: wfastcgi.py 3.0.0 initialized
+2025-06-10 13:23:17.193532: wfastcgi.py will restart when files in G:\www\TicketX\ are changed: .*((\.py)|(\.config))$
+2025-06-10 13:23:17.194345: wfastcgi.py 3.0.0 initialized

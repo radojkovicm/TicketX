@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Import Users - Ticket System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4>Import Users from Excel</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="excel_file" class="form-label">Excel File</label>
+                        <input type="file" class="form-control" id="excel_file" name="excel_file" accept=".xlsx,.xls" required>
+                        <div class="form-text">
+                            Excel file should contain columns: username, password, full_name, email, department_name, role
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Import Users</button>
+                    <a href="{{ url_for('admin_panel') }}" class="btn btn-secondary">Cancel</a>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>Add Single User</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('add_user_manual') }}">
+                    <div class="mb-2">
+                        <input type="text" class="form-control form-control-sm" name="username" placeholder="Username" required>
+                    </div>
+                    <div class="mb-2">
+                        <input type="password" class="form-control form-control-sm" name="password" placeholder="Password" required>
+                    </div>
+                    <div class="mb-2">
+                        <input type="text" class="form-control form-control-sm" name="full_name" placeholder="Full Name" required>
+                    </div>
+                    <div class="mb-2">
+                        <input type="email" class="form-control form-control-sm" name="email" placeholder="Email">
+                    </div>
+                    <div class="mb-2">
+                        <select class="form-select form-select-sm" name="department_id">
+                            <option value="">Select Department</option>
+                            {% for dept in departments %}
+                            <option value="{{ dept[0] }}">{{ dept[1] }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <select class="form-select form-select-sm" name="role">
+                            <option value="user">User</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-success">Add User</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Search Results{% endblock %}
+{% block content %}
+<h2>Search Results for "{{ query }}"</h2>
+<p>Found {{ tickets|length }} ticket(s)</p>
+<a href="{{ url_for('dashboard') }}" class="btn btn-secondary mb-3">Back to Dashboard</a>
+
+{% if tickets %}
+    {% set current_tab = 'search' %}
+    {% include 'partials/ticket_table.html' %}
+{% else %}
+    <p>No tickets found matching your search.</p>
+{% endif %}
+{% endblock %}

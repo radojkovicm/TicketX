@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}My Profile{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h3 class="mb-3">My Profile</h3>
+
+  <form method="POST" action="{{ url_for('my_profile') }}" class="row g-3">
+
+    <div class="col-md-6 mb-3">
+      <label for="full_name" class="form-label">Full Name</label>
+      <input type="text" id="full_name" name="full_name" class="form-control" value="{{ user[4] or '' }}" required>
+    </div>
+
+    <div class="col-md-6 mb-3">
+      <label for="email" class="form-label">Email (optional)</label>
+      <input type="email" id="email" name="email" class="form-control" value="{{ user[3] or '' }}" placeholder="name@company.com">
+    </div>
+
+    <div class="col-md-6 mb-3">
+      <label for="department_id" class="form-label">Department</label>
+      <select id="department_id" name="department_id" class="form-select">
+        <option value="">-- None --</option>
+        {% for d in departments %}
+          <option value="{{ d[0] }}" {% if user[6] == d[0] %}selected{% endif %}>{{ d[1] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-md-6 mb-3">
+      <label for="new_password" class="form-label">New Password (optional)</label>
+      <input type="password" id="new_password" name="new_password" class="form-control" placeholder="At least 8 characters">
+    </div>
+
+    <div class="col-md-6 mb-3">
+      <label for="confirm_password" class="form-label">Confirm New Password</label>
+      <input type="password" id="confirm_password" name="confirm_password" class="form-control">
+    </div>
+
+    <div class="col-12">
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+      <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

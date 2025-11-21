@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Ticket - Ticket System{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4>Edit Ticket #{{ ticket[0] }}</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Title</label>
+                        <input type="text" class="form-control" id="title" name="title" value="{{ ticket[1] }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="5" required>{{ ticket[2] }}</textarea>
+                    </div>
+                    <div class="row">
+                    <div class="mb-3">
+                        <label for="priority" class="form-label">Priority</label>
+                        <select class="form-select" id="priority" name="priority" required>
+                            <option value="low" {% if ticket[4] == 'low' %}selected{% endif %}>Low</option>
+                            <option value="medium" {% if ticket[4] == 'medium' %}selected{% endif %}>Medium</option>
+                            <option value="high" {% if ticket[4] == 'high' %}selected{% endif %}>High</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="category_id" class="form-label">Category</label>
+                            <select class="form-select" id="category_id" name="category_id" required>
+                                {% for category in categories %}
+                                <option value="{{ category[0] }}" {{ 'selected' if category[0] == ticket[3] else '' }}>
+                                    {{ category[1] }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="assigned_to" class="form-label">Assign To <span class="text-danger">*</span></label>
+                                    <select class="form-select" id="assigned_to" name="assigned_to" required>
+                                        <option value="IT" {% if ticket[7] is none %}selected{% endif %}>IT</option>
+                                        {% for user in users %}
+                                        <option value="{{ user[0] }}" {% if ticket[7] == user[0] %}selected{% endif %}>{{ user[1] }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="due_date" class="form-label">Due Date</label>
+                                    <input type="date" class="form-control" id="due_date" name="due_date" value="{{ ticket[8] or '' }}">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3 position-relative" id="watchers-wrapper">
+                            <label for="watchers" class="form-label">Watchers</label>
+                            <input type="text" class="form-control" id="watchers" name="watchers" value="{{ watchers or '' }}"
+                                    placeholder="e.g. IT, Ime Priimek..." autocomplete="off">
+                            <div id="watchers-suggestions" class="list-group" style="position:absolute; top:100%; left:0; right:0; z-index:1000; display:none; max-height:220px; overflow-y:auto;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Attachments (paste to upload immediately)</label>
+                    <div class="mt-2">
+                        <div id="pasteZone" style="border:2px dashed #bbb; padding:12px; border-radius:8px; min-height:44px; background:#f9f9f9; cursor:pointer; text-align:center; color:#888;">
+                            Click here or press Ctrl+V anywhere to paste an image (max 5MB)
+                        </div>
+                        <div id="pastePreviews" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;"></div>
+                        <small class="text-muted d-block mt-1">Pasted images will be uploaded immediately to this ticket.</small>
+                    </div>
+                </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Update Ticket</button>
+                        <a href="{{ url_for('ticket_detail', ticket_id=ticket[0]) }}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+/* Paste in edit: auto-upload to /upload_attachment */
+(function() {
+  const zone = document.getElementById('pasteZone');
+  const previews = document.getElementById('pastePreviews');
+  if (!zone || !previews) return;
+
+  const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+
+  function addPreview(file) {
+    const url = URL.createObjectURL(file);
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = file.name || 'pasted image';
+    img.style.cssText = 'width:96px;height:96px;object-fit:cover;border:1px solid #ddd;border-radius:6px;';
+    previews.appendChild(img);
+  }
+
+  function uploadFile(file) {
+    const fd = new FormData();
+    fd.append('ticket_id', '{{ ticket[0] }}');
+    fd.append('file', file, file.name || 'pasted-image.png');
+    
+    zone.textContent = 'Uploading...';
+    zone.style.pointerEvents = 'none';
+    
+    fetch('{{ url_for("upload_attachment") }}', { method: 'POST', body: fd })
+      .then(r => {
+        if (!r.ok) throw new Error('Upload failed');
+        zone.textContent = 'Click here or press Ctrl+V anywhere to paste an image (max 5MB)';
+        zone.style.pointerEvents = 'auto';
+        // ✅ NEMA VIŠE REDIRECT-a! Ostaje na edit stranici
+      })
+      .catch(err => {
+        console.error(err);
+        zone.textContent = 'Upload failed. Paste again to retry.';
+        zone.style.pointerEvents = 'auto';
+      });
+  }
+
+  function handlePaste(items) {
+    for (const item of items) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const f = item.getAsFile();
+        if (!f) continue;
+        if (f.size > MAX_SIZE) {
+          alert('Image too large! Max 5MB.');
+          continue;
+        }
+        const named = new File([f], `pasted_${Date.now()}.png`, { type: f.type || 'image/png' });
+        addPreview(named);
+        uploadFile(named);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  zone.addEventListener('paste', function(e) {
+    const items = (e.clipboardData || window.clipboardData)?.items;
+    if (!items) return;
+    if (handlePaste(items)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
+
+  document.addEventListener('paste', function(e) {
+    const items = (e.clipboardData || window.clipboardData)?.items;
+    if (!items) return;
+    if (handlePaste(items)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
+})();
+</script>
+{% endblock %}
