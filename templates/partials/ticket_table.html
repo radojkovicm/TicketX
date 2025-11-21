@@ -1,0 +1,114 @@
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Title</th>
+            <th>Priority</th>
+            <th>Status</th>
+            <th>Created At</th>
+            <th>Last Updated</th> <!-- nova kolona -->
+            <th>Assigned To</th>
+            <th>Created By</th>
+            <th>Due Date</th>
+            {% if current_tab != 'watcher' %}
+            <th>Actions</th>
+            {% endif %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for ticket in tickets %}
+        <tr>
+            <td>{{ ticket[0] }}</td>
+            <td>{{ ticket[1] }}</td>
+            <td>
+                <span class="badge bg-{{ 'danger' if ticket[2] == 'high' else 'warning' if ticket[2] == 'medium' else 'info' }}">
+                    {{ ticket[2].title() }}
+                </span>
+            </td>
+            <td>
+                <span class="badge bg-{{ 'success' if ticket[3] == 'closed' else 'primary' if ticket[3] == 'in_progress' else 'warning' if ticket[3] == 'awaiting_confirmation' else 'secondary' }}">
+                    {{ ticket[3].replace('_', ' ').title() }}
+                </span>
+            </td>
+            <td>{{ ticket[4] }}</td>
+            <td>{{ ticket[5] }}</td> <!-- Last Updated -->
+
+            <td>
+                {% if role == 'admin' and current_tab != 'watcher' %}
+                <form method="POST" action="{{ url_for('assign_ticket') }}" class="d-inline">
+                    <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
+                    <select name="assigned_to" class="form-select form-select-sm" style="width: 140px;" onchange="this.form.submit()">
+                        <option value="">IT</option>
+                        {% for admin in it_admins %}
+                            {% if admin[1].lower() != 'admin' %}
+                            <option value="{{ admin[0] }}" {{ 'selected' if ticket[7] == admin[0] else '' }}>
+                                {{ admin[1] }}
+                            </option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                </form>
+                {% else %}
+                {{ ticket[11] or 'IT' }}
+                {% endif %}
+            </td>
+
+            <td>{{ ticket[10] or 'N/A' }}</td> {# Created By #}
+            <td>{{ ticket[8] or 'N/A' }}</td> {# Due Date #}
+
+            {% if current_tab != 'watcher' %}
+            <td>
+                <a href="{{ url_for('ticket_detail', ticket_id=ticket[0]) }}" class="btn btn-sm btn-outline-primary">View</a>
+
+                {% if role == 'admin' %}
+                    {% if ticket[3] != 'closed' %}
+                    <form method="POST" action="{{ url_for('update_ticket_status') }}" class="d-inline">
+                        <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
+                        {% if ticket[3] == 'new' %}
+                        <button type="submit" name="status" value="assigned" class="btn btn-sm btn-info">Assign</button>
+                        {% elif ticket[3] == 'assigned' %}
+                        <button type="submit" name="status" value="in_progress" class="btn btn-sm btn-success">Start Work</button>
+                        {% elif ticket[3] == 'in_progress' %}
+                        <button type="submit" name="status" value="awaiting_confirmation" class="btn btn-sm btn-warning">Request Confirmation</button>
+                        {% endif %}
+                    </form>
+                    {% endif %}
+                {% endif %}
+
+                {% if role != 'admin' and session.user_id == ticket[7] %}
+                    {% if ticket[3] == 'assigned' or ticket[3] == 'new' %}
+                    <form method="POST" action="{{ url_for('update_ticket_status') }}" class="d-inline">
+                        <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
+                        <button type="submit" name="status" value="in_progress" class="btn btn-sm btn-success">Start Work</button>
+                    </form>
+                    {% elif ticket[3] == 'in_progress' %}
+                    <form method="POST" action="{{ url_for('update_ticket_status') }}" class="d-inline">
+                        <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
+                        <button type="submit" name="status" value="awaiting_confirmation" class="btn btn-sm btn-warning">Request Confirmation</button>
+                    </form>
+                    {% endif %}
+                {% endif %}
+
+                {% if session.user_id == ticket[6] %}
+                    {% if ticket[3] in ['new', 'assigned'] %}
+                    <a href="{{ url_for('edit_ticket', ticket_id=ticket[0]) }}" class="btn btn-sm btn-outline-warning">Edit</a>
+                    {% endif %}
+
+                    {% if ticket[3] == 'awaiting_confirmation' %}
+                    <form method="POST" action="{{ url_for('mark_resolved', ticket_id=ticket[0]) }}" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-outline-success" onclick="return confirm('Confirm that this ticket has been resolved?')">Confirm Resolution</button>
+                    </form>
+                    {% endif %}
+
+                    {% if ticket[3] in ['new', 'assigned'] %}
+                    <form method="POST" action="{{ url_for('mark_resolved', ticket_id=ticket[0]) }}" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-outline-success" onclick="return confirm('Mark as resolved?')">Resolve</button>
+                    </form>
+                    {% endif %}
+                {% endif %}
+            </td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>

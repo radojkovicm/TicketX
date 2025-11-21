@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block container_class %}container-fluid px-4{% endblock %}
+
+{% block title %}Dashboard - Ticket System{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        {% if role == 'admin' %}
+            All Tickets
+        {% else %}
+            My Tickets
+        {% endif %}
+    </h2>
+    <a href="{{ url_for('create_ticket') }}" class="btn btn-primary">Create New Ticket</a>
+</div>
+
+<!-- Sortiranje -->
+<form method="GET" class="mb-3 d-flex align-items-center gap-3">
+  <!-- Sačuvaj trenutne filtere u formi -->
+  <input type="hidden" name="filter" value="{{ current_filter }}">
+  <input type="hidden" name="assigned" value="{{ assigned_filter }}">
+  <label for="sort" class="form-label mb-0">Sort by:</label>
+  <select name="sort" id="sort" class="form-select form-select-sm" style="width: 220px;" onchange="this.form.submit()">
+    <option value="updated_at_desc" {% if sort_param == 'updated_at_desc' %}selected{% endif %}>Last Updated (Newest)</option>
+    <option value="updated_at_asc" {% if sort_param == 'updated_at_asc' %}selected{% endif %}>Last Updated (Oldest)</option>
+    <option value="created_at_desc" {% if sort_param == 'created_at_desc' %}selected{% endif %}>Created At (Newest)</option>
+    <option value="created_at_asc" {% if sort_param == 'created_at_asc' %}selected{% endif %}>Created At (Oldest)</option>
+    <option value="priority_desc" {% if sort_param == 'priority_desc' %}selected{% endif %}>Priority (High to Low)</option>
+    <option value="priority_asc" {% if sort_param == 'priority_asc' %}selected{% endif %}>Priority (Low to High)</option>
+    <option value="due_date_desc" {% if sort_param == 'due_date_desc' %}selected{% endif %}>Due Date (Newest)</option>
+    <option value="due_date_asc" {% if sort_param == 'due_date_asc' %}selected{% endif %}>Due Date (Oldest)</option>
+  </select>
+</form>
+
+<!-- Search form -->
+<form method="GET" action="{{ url_for('search') }}" class="mb-3 d-flex align-items-center gap-3">
+  <label for="search" class="form-label mb-0">Search:</label>
+  <input type="text" name="q" id="search" class="form-control form-control-sm" style="width: 300px;"
+         placeholder="Search tickets, descriptions, comments..." value="{{ request.args.get('q', '') }}" autocomplete="off">
+  <button type="submit" class="btn btn-outline-primary btn-sm">Search</button>
+</form>
+
+<!-- Status Filter Buttons -->
+<div class="mb-3">
+    <div class="btn-group" role="group">
+        <a href="{{ url_for('dashboard', filter='active', assigned=assigned_filter) }}" 
+           class="btn btn-{{ 'primary' if current_filter == 'active' else 'outline-primary' }}">
+            Active Tickets
+        </a>
+        <a href="{{ url_for('dashboard', filter='all', assigned=assigned_filter) }}" 
+           class="btn btn-{{ 'primary' if current_filter == 'all' else 'outline-primary' }}">
+            All Tickets
+        </a>
+        <a href="{{ url_for('dashboard', filter='closed', assigned=assigned_filter) }}" 
+           class="btn btn-{{ 'primary' if current_filter == 'closed' else 'outline-primary' }}">
+            Archived (Closed)
+        </a>
+    </div>
+</div>
+
+{% if role == 'admin' %}
+<!-- Admin tabs -->
+<ul class="nav nav-tabs mb-3" id="ticketTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="assigned-tab" data-bs-toggle="tab" data-bs-target="#assigned" type="button" role="tab" aria-controls="assigned" aria-selected="true">Assigned to me</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="all-tab" data-bs-toggle="tab" data-bs-target="#all" type="button" role="tab" aria-controls="all" aria-selected="false">All Tickets</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="created-tab" data-bs-toggle="tab" data-bs-target="#created" type="button" role="tab" aria-controls="created" aria-selected="false">My Created Tickets</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="watched-tab" data-bs-toggle="tab" data-bs-target="#watched" type="button" role="tab" aria-controls="watched" aria-selected="false">Watched Tickets</button>
+    </li>
+    {% for admin_user in it_admins %}
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="admin-{{ admin_user[0] }}-tab" data-bs-toggle="tab" data-bs-target="#admin-{{ admin_user[0] }}" type="button" role="tab" aria-controls="admin-{{ admin_user[0] }}" aria-selected="false">{{ admin_user[1].split()[0] }}</button>
+    </li>
+    {% endfor %}
+</ul>
+
+<div class="tab-content" id="ticketTabsContent">
+    <!-- Assigned to me -->
+    <div class="tab-pane fade show active" id="assigned" role="tabpanel" aria-labelledby="assigned-tab">
+        {% set tickets = tickets_assigned_to_me %}
+        {% set current_tab = 'assigned' %}
+        {% include 'partials/ticket_table.html' %}
+    </div>
+    
+    <!-- All Tickets -->
+    <div class="tab-pane fade" id="all" role="tabpanel" aria-labelledby="all-tab">
+        {% set tickets = tickets_all_for_admin %}
+        {% set current_tab = 'all' %}
+        {% include 'partials/ticket_table.html' %}
+    </div>
+    <div class="tab-pane fade" id="created" role="tabpanel" aria-labelledby="created-tab">
+        {% set tickets = tickets_my_created %}
+        {% set current_tab = 'created' %}
+        {% include 'partials/ticket_table.html' %}
+    </div>
+    <div class="tab-pane fade" id="watched" role="tabpanel" aria-labelledby="watched-tab">
+        {% set tickets = tickets_watched_admin %}
+        {% set current_tab = 'watched' %}
+        {% include 'partials/ticket_table.html' %}
+    </div>
+    {% for admin_user in it_admins %}
+    <div class="tab-pane fade" id="admin-{{ admin_user[0] }}" role="tabpanel" aria-labelledby="admin-{{ admin_user[0] }}-tab">
+        {% if current_filter == 'closed' %}
+            {% set tickets = tickets_closed_by_admin.get(admin_user[0], []) %}
+        {% else %}
+            {% set tickets = tickets_by_admin.get(admin_user[0], []) %}
+        {% endif %}
+        {% set current_tab = 'admin_' ~ admin_user[0] %}
+        {% include 'partials/ticket_table.html' %}
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+<!-- Regular user tabs -->
+<ul class="nav nav-tabs mb-3" id="ticketTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="assigned-tab" data-bs-toggle="tab" data-bs-target="#assigned" type="button" role="tab" aria-controls="assigned" aria-selected="true">Assigned to me</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="created-tab" data-bs-toggle="tab" data-bs-target="#created" type="button" role="tab" aria-controls="created" aria-selected="false">My created tickets</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="watched-tab" data-bs-toggle="tab" data-bs-target="#watched" type="button" role="tab" aria-controls="watched" aria-selected="false">Watched Tickets</button>
+    </li>
+</ul>
+
+<div class="tab-content" id="ticketTabsContent">
+    <div class="tab-pane fade show active" id="assigned" role="tabpanel" aria-labelledby="assigned-tab">
+        {% set tickets = tickets_assigned_to_me %}
+        {% set current_tab = 'assigned' %}
+        {% include 'partials/ticket_table.html' %}
+    </div>
+    <div class="tab-pane fade" id="created" role="tabpanel" aria-labelledby="created-tab">
+        {% set tickets = tickets_my_created %}
+        {% set current_tab = 'created' %}
+        {% include 'partials/ticket_table.html' %}
+    </div>
+    <div class="tab-pane fade" id="watched" role="tabpanel" aria-labelledby="watched-tab">
+        {% set tickets = tickets_watched %}
+        {% set current_tab = 'watched' %}
+        {% include 'partials/ticket_table.html' %}
+    </div>
+</div>
+{% endif %}
+
+{% if not tickets %}
+<div class="text-center mt-5">
+    <p class="text-muted">No tickets found for the selected filter.</p>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var triggerTabList = [].slice.call(document.querySelectorAll('#ticketTabs button'))
+  triggerTabList.forEach(function(triggerEl) {
+    triggerEl.addEventListener('shown.bs.tab', function(event) {
+      if (typeof(Storage) !== "undefined") {
+        localStorage.setItem('activeTicketTab', event.target.id);
+      }
+    });
+  });
+
+  if (typeof(Storage) !== "undefined") {
+    var activeTab = localStorage.getItem('activeTicketTab');
+    if (activeTab) {
+      var someTabTriggerEl = document.getElementById(activeTab);
+      if (someTabTriggerEl) {
+        var tab = new bootstrap.Tab(someTabTriggerEl);
+        tab.show();
+      }
+    }
+  }
+});
+</script>
+{% endblock %}

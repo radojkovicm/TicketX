@@ -1,0 +1,475 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Panel - Ticket System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2>Admin Panel</h2>
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>System Logs</h5>
+                </div>
+                <div class="card-body">
+                    <a href="{{ url_for('view_logs') }}" class="btn btn-info">View Activity Logs</a>
+                    <p class="text-muted mt-2">Monitor all user activities and system events</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                        Add Single User
+                    </button>
+                    <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#importUsersModal">
+                        Import Users from Excel
+                    </button>
+                    <button class="btn btn-warning me-2" data-bs-toggle="modal" data-bs-target="#addDepartmentModal">
+                        Add Department
+                    </button>
+                    <button class="btn btn-secondary me-2" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
+                        Add Category
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary">
+                <div class="card-body text-center py-2">
+                    <h6 class="mb-1">Total Users</h6>
+                    <h5 class="mb-0">{{ users|length }}</h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-success">
+                <div class="card-body text-center py-2">
+                    <h6 class="mb-1">Total Tickets</h6>
+                    <h5 class="mb-0">{{ tickets|length }}</h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-warning">
+                <div class="card-body text-center py-2">
+                    <h6 class="mb-1">Departments</h6>
+                    <h5 class="mb-0">{{ departments|length }}</h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-info">
+                <div class="card-body text-center py-2">
+                    <h6 class="mb-1">Categories</h6>
+                    <h5 class="mb-0">{{ categories|length }}</h5>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Users Management -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Users Management</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Username</th>
+                                    <th>Full Name</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Department</th>
+                                    <th>Dept. Head</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in users %}
+                                <tr>
+                                    <td>{{ user[0] }}</td>
+                                    <td>{{ user[1] }}</td>
+                                    <td>{{ user[4] }}</td>
+                                    <td>{{ user[3] or 'N/A' }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ 'danger' if user[5] == 'admin' else 'primary' }}">
+                                            {{ user[5].title() }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if user[9] %}
+                                            {{ user[9] }}
+                                        {% else %}
+                                            <span class="text-muted">No Department</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if user[7] %}
+                                        <span class="badge bg-success">Yes</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">No</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('edit_user', user_id=user[0]) }}" class="btn btn-sm btn-outline-warning me-1">Edit</a>
+                                        <button class="btn btn-sm btn-outline-danger" data-action="delete-user" data-user-id="{{ user[0] }}">Delete</button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Departments Management -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Departments</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Description</th>
+                                    <th>Users Count</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for dept in departments %}
+                                <tr>
+                                    <td>{{ dept[0] }}</td>
+                                    <td>{{ dept[1] }}</td>
+                                    <td>{{ dept[2] or 'N/A' }}</td>
+                                    <td>
+                                        {% set user_count = namespace(count=0) %}
+                                        {% for user in users %}
+                                            {% if user[6] == dept[0] %}
+                                                {% set user_count.count = user_count.count + 1 %}
+                                            {% endif %}
+                                        {% endfor %}
+                                        {{ user_count.count }}
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary me-1" data-action="manage-dept-users" data-dept-id="{{ dept[0] }}">Manage Users</button>
+                                        <a href="{{ url_for('edit_department', dept_id=dept[0]) }}" class="btn btn-sm btn-outline-primary me-1">Edit</a>
+                                        <button class="btn btn-sm btn-outline-danger" data-action="delete-department" data-dept-id="{{ dept[0] }}">Delete</button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Categories Management -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Categories</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Description</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for category in categories %}
+                                <tr>
+                                    <td>{{ category[0] }}</td>
+                                    <td>{{ category[1] }}</td>
+                                    <td>{{ category[2] or 'N/A' }}</td>
+                                    <td>
+                                        <a href="{{ url_for('edit_category', cat_id=category[0]) }}" class="btn btn-sm btn-outline-primary me-1">Edit</a>
+                                        <button class="btn btn-sm btn-outline-danger" data-action="delete-category" data-cat-id="{{ category[0] }}">Delete</button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">← Back to Dashboard</a>
+    </div>
+</div>
+
+<!-- Add User Modal -->
+<div class="modal fade" id="addUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add New User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('add_user_manual') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="username" name="username" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="password" name="password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="full_name" class="form-label">Full Name</label>
+                        <input type="text" class="form-control" id="full_name" name="full_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="email" name="email">
+                    </div>
+                    <div class="mb-3">
+                        <label for="role" class="form-label">Role</label>
+                        <select class="form-select" id="role" name="role" required>
+                            <option value="user">User</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="department_id" class="form-label">Department</label>
+                        <select class="form-select" id="department_id" name="department_id">
+                            <option value="">No Department</option>
+                            {% for dept in departments %}
+                            <option value="{{ dept[0] }}">{{ dept[1] }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="is_department_head" name="is_department_head">
+                        <label class="form-check-label" for="is_department_head">
+                            Department Head
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add User</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Import Users Modal -->
+<div class="modal fade" id="importUsersModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Import Users from Excel</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('import_users') }}" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="file" class="form-label">Excel File</label>
+                        <input type="file" class="form-control" id="file" name="file" accept=".xlsx,.xls" required>
+                    </div>
+                    <div class="alert alert-info">
+                        <strong>Excel Format:</strong><br>
+                        Columns: username, password, full_name, email, role, department_name, is_department_head
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">Import Users</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add Department Modal -->
+<div class="modal fade" id="addDepartmentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add New Department</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('add_department') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="dept_name" class="form-label">Department Name</label>
+                        <input type="text" class="form-control" id="dept_name" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="dept_description" class="form-label">Description</label>
+                        <textarea class="form-control" id="dept_description" name="description" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning">Add Department</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add Category Modal -->
+<div class="modal fade" id="addCategoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add New Category</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('add_category') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="cat_name" class="form-label">Category Name</label>
+                        <input type="text" class="form-control" id="cat_name" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="cat_description" class="form-label">Description</label>
+                        <textarea class="form-control" id="cat_description" name="description" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-secondary">Add Category</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Delete user
+    document.querySelectorAll('[data-action="delete-user"]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var userId = this.getAttribute('data-user-id');
+            if (confirm('Are you sure you want to delete this user?')) {
+                fetch('/delete_user/' + userId, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(function(response) {
+                    return response.json();
+                })
+                .then(function(data) {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Error deleting user: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(function(error) {
+                    alert('Error: ' + error);
+                });
+            }
+        });
+    });
+
+    // Delete department
+    document.querySelectorAll('[data-action="delete-department"]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var deptId = this.getAttribute('data-dept-id');
+            if (confirm('Are you sure you want to delete this department? All users will be removed from it.')) {
+                fetch('/delete_department/' + deptId, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(function(response) {
+                    return response.json();
+                })
+                .then(function(data) {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Error deleting department: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(function(error) {
+                    alert('Error: ' + error);
+                });
+            }
+        });
+    });
+
+    // Delete category
+    document.querySelectorAll('[data-action="delete-category"]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var catId = this.getAttribute('data-cat-id');
+            if (confirm('Are you sure you want to delete this category?')) {
+                fetch('/delete_category/' + catId, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(function(response) {
+                    return response.json();
+                })
+                .then(function(data) {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Error deleting category: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(function(error) {
+                    alert('Error: ' + error);
+                });
+            }
+        });
+    });
+
+    // Manage department users
+    document.querySelectorAll('[data-action="manage-dept-users"]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var deptId = this.getAttribute('data-dept-id');
+            window.location.href = '/manage_department_users/' + deptId;
+        });
+    });
+});
+</script>
+
+{% endblock %}

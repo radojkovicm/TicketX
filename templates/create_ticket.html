@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+
+{% block title %}Create Ticket - Ticket System{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-4">
+    <div class="col-md-8">
+        <h3>Create New Ticket</h3>
+        <form method="POST" enctype="multipart/form-data">
+            <div class="mb-3">
+                <label for="title" class="form-label">Title <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="title" name="title" required
+                       value="{{ form.title or '' }}">
+            </div>
+
+            <div class="mb-3">
+                <label for="description" class="form-label">Description <span class="text-danger">*</span></label>
+                <textarea class="form-control" id="description" name="description" rows="4" required>{{ request.form.description or '' }}</textarea>
+            </div>
+
+            <div class="mb-3">
+                <label for="category_id" class="form-label">Category</label>
+                <select class="form-select" id="category_id" name="category_id">
+                    <option value="">Select Category</option>
+                    {% for category in categories %}
+                    <option value="{{ category[0] }}" {% if request.form.category_id == category[0]|string %}selected{% endif %}>{{ category[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label for="priority" class="form-label">Priority <span class="text-danger">*</span></label>
+                <select class="form-select" id="priority" name="priority" required>
+                    <option value="">Select Priority</option>
+                    <option value="low" {% if request.form.priority == 'low' %}selected{% endif %}>Low</option>
+                    <option value="medium" {% if request.form.priority == 'medium' %}selected{% endif %}>Medium</option>
+                    <option value="high" {% if request.form.priority == 'high' %}selected{% endif %}>High</option>
+                </select>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <label for="assigned_to" class="form-label">Assign To <span class="text-danger">*</span></label>
+                    <select class="form-select" id="assigned_to" name="assigned_to" required>
+                        <option value="IT" {% if request.form.assigned_to == 'IT' or not request.form.assigned_to %}selected{% endif %}>IT</option>
+                        {% for user in users %}
+                        <option value="{{ user[0] }}" {% if request.form.assigned_to == user[0]|string %}selected{% endif %}>{{ user[1] }}</option>
+                        {% endfor %}
+                    </select>
+                    <small class="text-muted">You ({{ session.full_name }})</small>
+                </div>
+                <div class="col-md-6">
+                    <label for="due_date" class="form-label">Due Date</label>
+                    <input type="date" class="form-control" id="due_date" name="due_date"
+                           value="{{ request.form.due_date or '' }}">
+                </div>
+            </div>
+
+            <div class="mb-3 position-relative" id="watchers-wrapper">
+                <label for="watchers" class="form-label">Watchers</label>
+                <input type="text" class="form-control" id="watchers" name="watchers" value="{{ watchers or '' }}"
+                        placeholder="e.g. IT, Ime Priimek..." autocomplete="off">
+                <div id="watchers-suggestions" class="list-group" style="position:absolute; top:100%; left:0; right:0; z-index:1000; display:none; max-height:220px; overflow-y:auto;"></div>
+            </div>
+
+            <div class="mb-3 mt-3">
+              <label for="attachments" class="form-label">Attachments</label>
+              <input type="file" class="form-control" id="attachments" name="attachments" multiple>
+              <div class="mt-2">
+                  <div id="pasteZone" style="border:2px dashed #bbb; padding:12px; border-radius:8px; min-height:44px; background:#f9f9f9; cursor:pointer; text-align:center; color:#888;">
+                      Click here or press Ctrl+V anywhere to paste an image (max 5MB)
+                  </div>
+                  <div id="pastePreviews" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;"></div>
+              </div>
+          </div>
+
+            <!-- Dodaj posle postojećih polja, pre submit dugmeta -->
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="template_name" class="form-label">Save as Template:</label>
+                    <input type="text" class="form-control" id="template_name" name="template_name" placeholder="Template name (optional)">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Load Template:</label>
+                    <div class="d-flex gap-2">
+                        {% for template in templates %}
+                        <a href="{{ url_for('load_template', template_id=template[0]) }}" class="btn btn-outline-info btn-sm">{{ template[2] }}</a>
+                        <form method="POST" action="{{ url_for('delete_template', template_id=template[0]) }}" class="d-inline">
+                            <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('Delete template?')">×</button>
+                        </form>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Create Ticket</button>
+                {% if request.form.get('template_name') %}
+                <button type="submit" formaction="{{ url_for('save_template') }}" class="btn btn-success">Save Template</button>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+/* Robust paste for create_ticket: adds to file input + preview + delete */
+(function() {
+  const pasteZone = document.getElementById('pasteZone');
+  const previews = document.getElementById('pastePreviews');
+  const fileInput = document.getElementById('attachments');
+  if (!pasteZone || !previews || !fileInput) return;
+
+  const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+  const pastedFiles = []; // Track pasted files separately
+  const manualFiles = []; // Track manually selected files
+
+  function updateFileInput() {
+    const dt = new DataTransfer();
+    // Add manually selected files first
+    manualFiles.forEach(f => dt.items.add(f));
+    // Add pasted files
+    pastedFiles.forEach(f => dt.items.add(f));
+    fileInput.files = dt.files;
+  }
+
+  function getFileIcon(fileType, fileName) {
+    // Determine icon based on file type
+    const ext = fileName.split('.').pop().toLowerCase();
+    if (fileType.startsWith('image/')) return '🖼️';
+    if (ext === 'pdf') return '📄';
+    if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊';
+    if (['doc', 'docx'].includes(ext)) return '📝';
+    if (['zip', 'rar', '7z'].includes(ext)) return '📦';
+    if (['mp4', 'avi', 'mov'].includes(ext)) return '🎥';
+    return '📎';
+  }
+
+  function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function addPreview(file, isPasted) {
+    // Check if already exists
+    const existing = Array.from(previews.children).find(
+      child => child.dataset.fileName === file.name && child.dataset.fileSize === String(file.size)
+    );
+    if (existing) return; // Don't add duplicates
+
+    const wrap = document.createElement('div');
+    wrap.dataset.fileName = file.name;
+    wrap.dataset.fileSize = file.size;
+    if (isPasted) wrap.dataset.pasted = 'true';
+    
+    const deleteBtn = document.createElement('button');
+    deleteBtn.innerHTML = '&times;';
+    deleteBtn.type = 'button';
+    deleteBtn.style.cssText = 'position:absolute;top:2px;right:2px;width:20px;height:20px;border:none;background:rgba(255,0,0,0.8);color:#fff;border-radius:50%;cursor:pointer;font-size:14px;line-height:1;padding:0;z-index:10;';
+    deleteBtn.onclick = function() {
+      if (isPasted) {
+        const idx = pastedFiles.indexOf(file);
+        if (idx > -1) pastedFiles.splice(idx, 1);
+      } else {
+        const idx = manualFiles.indexOf(file);
+        if (idx > -1) manualFiles.splice(idx, 1);
+      }
+      updateFileInput();
+      wrap.remove();
+      if (file.type.startsWith('image/')) {
+        URL.revokeObjectURL(wrap.querySelector('img')?.src);
+      }
+    };
+
+    // Check if it's an image
+    if (file.type.startsWith('image/')) {
+      const url = URL.createObjectURL(file);
+      wrap.style.cssText = 'position:relative;width:96px;height:96px;border:1px solid #ddd;border-radius:6px;overflow:hidden;background:#fafafa;';
+      
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = file.name;
+      img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+      
+      const badge = document.createElement('div');
+      badge.textContent = (file.type || '').replace('image/', '').toUpperCase() || 'IMG';
+      badge.style.cssText = 'position:absolute;left:4px;bottom:4px;background:rgba(0,0,0,0.7);color:#fff;font-size:9px;padding:2px 4px;border-radius:3px;';
+      
+      wrap.appendChild(img);
+      wrap.appendChild(badge);
+    } else {
+      // Non-image file: show icon + name + size
+      wrap.style.cssText = 'position:relative;min-width:200px;max-width:300px;border:1px solid #ddd;border-radius:6px;padding:8px 28px 8px 8px;background:#fafafa;display:flex;align-items:center;gap:8px;';
+      
+      const icon = document.createElement('span');
+      icon.textContent = getFileIcon(file.type, file.name);
+      icon.style.cssText = 'font-size:24px;flex-shrink:0;';
+      
+      const info = document.createElement('div');
+      info.style.cssText = 'flex:1;min-width:0;';
+      
+      const name = document.createElement('div');
+      name.textContent = file.name;
+      name.style.cssText = 'font-size:12px;font-weight:500;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+      name.title = file.name; // Show full name on hover
+      
+      const size = document.createElement('div');
+      size.textContent = formatFileSize(file.size);
+      size.style.cssText = 'font-size:10px;color:#666;';
+      
+      info.appendChild(name);
+      info.appendChild(size);
+      wrap.appendChild(icon);
+      wrap.appendChild(info);
+    }
+    
+    wrap.appendChild(deleteBtn);
+    previews.appendChild(wrap);
+  }
+
+  function handlePaste(items) {
+    for (const item of items) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const f = item.getAsFile();
+        if (!f) continue;
+        if (f.size > MAX_SIZE) {
+          alert('Image too large! Max 5MB.');
+          continue;
+        }
+        const named = new File([f], `pasted_${Date.now()}.png`, { type: f.type || 'image/png' });
+        pastedFiles.push(named);
+        updateFileInput();
+        addPreview(named, true);
+        // Clear placeholder text
+        if (pasteZone.textContent.includes('Click here')) {
+          pasteZone.textContent = 'Paste another image or use file picker above';
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Paste on zone
+  pasteZone.addEventListener('paste', function(e) {
+    const items = (e.clipboardData || window.clipboardData)?.items;
+    if (!items) return;
+    if (handlePaste(items)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
+
+  // Global paste
+  document.addEventListener('paste', function(e) {
+    const items = (e.clipboardData || window.clipboardData)?.items;
+    if (!items) return;
+    if (handlePaste(items)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
+
+  // Show previews for manually selected files
+  fileInput.addEventListener('change', function() {
+    // ✅ DON'T clear manualFiles - just add new ones
+    // Add new manual files
+    for (const file of fileInput.files) {
+      // Skip if already in manualFiles or pastedFiles
+      const alreadyManual = manualFiles.some(mf => mf.name === file.name && mf.size === file.size);
+      const alreadyPasted = pastedFiles.some(pf => pf.name === file.name && pf.size === file.size);
+      
+      if (!alreadyManual && !alreadyPasted) {
+        manualFiles.push(file);
+        addPreview(file, false); // Show preview for ALL file types
+      }
+    }
+    // Update file input to include both manual + pasted
+    updateFileInput();
+  });
+})();
+</script>
+{% endblock %}

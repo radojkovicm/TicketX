@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Activity Logs{% endblock %}
+{% block content %}
+<h2>Activity Logs</h2>
+<a href="{{ url_for('admin_panel') }}" class="btn btn-secondary mb-3">Back to Admin Panel</a>
+
+<div class="table-responsive">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>User</th>
+                <th>Action</th>
+                <th>Details</th>
+                <th>IP Address</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td>{{ log[5] }}</td>
+                <td>{{ log[6] or 'Unknown' }}</td>
+                <td>{{ log[2] }}</td>
+                <td>{{ log[3] or '' }}</td>
+                <td>{{ log[4] or 'Unknown' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if total > per_page %}
+<nav>
+    <ul class="pagination">
+        {% if page > 1 %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('view_logs', page=page-1) }}">Previous</a>
+        </li>
+        {% endif %}
+        {% if page * per_page < total %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('view_logs', page=page+1) }}">Next</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}
