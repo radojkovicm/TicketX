@@ -61,6 +61,7 @@ class Database:
                 status TEXT DEFAULT 'new',
                 created_by INTEGER NOT NULL,
                 assigned_to INTEGER,
+                is_private INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (created_by) REFERENCES users (id),
@@ -139,6 +140,13 @@ class Database:
         """)
 
         conn.commit()
+        
+        # Migration: Add is_private column if it doesn't exist
+        try:
+            cursor.execute("SELECT is_private FROM tickets LIMIT 1")
+        except sqlite3.OperationalError:
+            cursor.execute("ALTER TABLE tickets ADD COLUMN is_private INTEGER DEFAULT 0")
+            conn.commit()
 
         # Insert default data
         self.insert_default_data(cursor)

@@ -14,7 +14,10 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h4>Ticket #{{ ticket[0] }} - {{ ticket[1] }}</h4>
-                <div>
+                <div class="d-flex gap-2">
+                    {% if ticket[8] == 1 %}
+                    <span class="badge bg-dark fs-6">🔒 Private</span>
+                    {% endif %}
                     <span class="badge bg-{{ 'success' if ticket[5] == 'closed' else 'primary' if ticket[5] == 'in_progress' else 'warning' if ticket[5] == 'awaiting_confirmation' else 'secondary' }} fs-6">
                         {{ ticket[5].replace('_', ' ').title() }}
                     </span>
@@ -27,7 +30,7 @@
                 <div class="row mb-3">
                     <div class="col-md-3">
                         <strong>Assigned To:</strong><br>
-                        {{ ticket[13] or 'IT' }}
+                        {{ ticket[14] or 'IT' }}
                     </div>
 
                     {% if session.user_id == ticket[7] or session.role == 'admin' or session.user_id==ticket[6] or session.user_id in watchers|map(attribute=0)|list %}
@@ -52,7 +55,7 @@
 
                     <div class="col-md-3">
                         <strong>Created By:</strong><br>
-                        {{ ticket[12] }}
+                        {{ ticket[13] }}
                     </div>
 
                     <div class="col-md-3">
@@ -208,8 +211,9 @@
                     {{ ticket[4].title() }}
                 </span>
                 </p>
-                <p><strong>Created By:</strong> {{ ticket[12] }}</p>
-                <p><strong>Assigned To:</strong> {{ ticket[13] or 'IT' }}</p>
+                <p><strong>Category:</strong> {{ ticket[12] }}</p>
+                <p><strong>Created By:</strong> {{ ticket[13] }}</p>
+                <p><strong>Assigned To:</strong> {{ ticket[14] or 'IT' }}</p>
                 <p><strong>Created:</strong> {{ ticket[9] }}</p>
                 <p><strong>Due Date:</strong> {{ ticket[8] or 'N/A' }}</p>
                 <p><strong>Last Updated:</strong> {{ ticket[10] }}</p>

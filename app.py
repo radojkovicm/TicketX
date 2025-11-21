@@ -243,12 +243,11 @@ def my_profile():
 @login_required
 def dashboard():
     role = session.get('role')
-    user_id = session.get('user_id')
-
+    userid = session.get('user_id')
     current_filter = request.args.get('filter', 'active')
     assigned_filter = request.args.get('assigned', 'me')
     sort_param = request.args.get('sort', 'updated_at_desc')
-
+    
     sort_options = {
         'updated_at_desc': 't.updated_at DESC',
         'updated_at_asc': 't.updated_at ASC',
@@ -256,30 +255,30 @@ def dashboard():
         'created_at_asc': 't.created_at ASC',
         'priority_desc': "CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END ASC",
         'priority_asc': "CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END DESC",
-        'due_date_desc': 'CASE WHEN t.due_date IS NULL OR t.due_date = "" THEN 0 ELSE 1 END DESC, t.due_date DESC',
-        'due_date_asc': 'CASE WHEN t.due_date IS NULL OR t.due_date = "" THEN 0 ELSE 1 END DESC, t.due_date ASC'
+        'due_date_desc': "CASE WHEN t.due_date IS NULL OR t.due_date = '' THEN 0 ELSE 1 END DESC, t.due_date DESC",
+        'due_date_asc': "CASE WHEN t.due_date IS NULL OR t.due_date = '' THEN 0 ELSE 1 END DESC, t.due_date ASC"
     }
     order_by = sort_options.get(sort_param, 't.updated_at DESC')
-
-    conn = Database().get_connection()
+    
+    # ISPRAVLJENO: Koristi Database kao instancu
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
-
+    
     # Load IT admins
-    cursor.execute("""
-        SELECT id, full_name FROM users
-        WHERE role = 'admin' AND LOWER(full_name) != 'admin'
-        ORDER BY full_name
-    """)
+    cursor.execute("SELECT id, full_name FROM users WHERE role = 'admin' AND LOWER(full_name) != 'admin' ORDER BY full_name")
     it_admins = cursor.fetchall()
     it_admin_ids = [admin[0] for admin in it_admins]
-    placeholders_admins = ','.join('?' for _ in it_admin_ids) if it_admin_ids else 'NULL'
-
+    placeholders_admins = ','.join(['?'] * len(it_admin_ids)) if it_admin_ids else 'NULL'
+    
+    # Status condition based on filter
     status_condition = "1=1"
     if current_filter == 'active':
         status_condition = "t.status != 'closed'"
     elif current_filter == 'closed':
         status_condition = "t.status = 'closed'"
-
+    
+    # Initialize all ticket collections
     tickets = []
     tickets_assigned_to_me = []
     tickets_my_created = []
@@ -288,132 +287,175 @@ def dashboard():
     tickets_watched_admin = []
     tickets_by_admin = {}
     tickets_closed_by_admin = {}
-
+    tickets_browse_all_public = []
+    tickets_browse_department = []
+    
     if role != 'admin':
-        # Assigned to me
-        query_assigned = f"""
-            SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-                   c.name as category_name, u.full_name as created_by_name,
-                   CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
-            FROM tickets t
-            LEFT JOIN categories c ON t.category_id = c.id
-            LEFT JOIN users u ON t.created_by = u.id
-            LEFT JOIN users a ON t.assigned_to = a.id
-            WHERE t.assigned_to = ? AND {status_condition}
-            ORDER BY {order_by}
+        # Browse Tickets: All Public & My Department
+        query_browse_all = f"""
+        SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+               c.name as category_name, u.full_name as created_by_name,
+               CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+        FROM tickets t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN users u ON t.created_by = u.id
+        LEFT JOIN users a ON t.assigned_to = a.id
+        WHERE t.is_private = 0 AND {status_condition}
+        ORDER BY {order_by}
         """
-        cursor.execute(query_assigned, (user_id,))
-        tickets_assigned_to_me = cursor.fetchall()
-
-        # My created
-        query_created = f"""
-            SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-                   c.name as category_name, u.full_name as created_by_name,
-                   CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
-            FROM tickets t
-            LEFT JOIN categories c ON t.category_id = c.id
-            LEFT JOIN users u ON t.created_by = u.id
-            LEFT JOIN users a ON t.assigned_to = a.id
-            WHERE t.created_by = ? AND {status_condition}
-            ORDER BY {order_by}
-        """
-        cursor.execute(query_created, (user_id,))
-        tickets_my_created = cursor.fetchall()
-
-        # Watched
-        query_watched = f"""
+        cursor.execute(query_browse_all)
+        tickets_browse_all_public = cursor.fetchall()
+        
+        user_department_id = session.get('department_id')
+        if user_department_id:
+            query_browse_dept = f"""
             SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-                            c.name as category_name, u.full_name as created_by_name,
-                            CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+                   c.name as category_name, u.full_name as created_by_name,
+                   CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
             FROM tickets t
-            JOIN ticket_watchers tw ON t.id = tw.ticket_id
             LEFT JOIN categories c ON t.category_id = c.id
             LEFT JOIN users u ON t.created_by = u.id
             LEFT JOIN users a ON t.assigned_to = a.id
-            WHERE tw.user_id = ? AND {status_condition}
+            LEFT JOIN ticket_watchers tw ON t.id = tw.ticket_id
+            WHERE ((u.department_id = ? OR a.department_id = ?) AND t.is_private = 0)
+                   OR t.created_by = ? OR t.assigned_to = ? OR tw.user_id = ?
+            AND {status_condition}
             ORDER BY {order_by}
-        """
-        cursor.execute(query_watched, (user_id,))
-        tickets_watched = cursor.fetchall()
-
+            """
+            cursor.execute(query_browse_dept, (user_department_id, user_department_id, userid, userid, userid))
+            tickets_browse_department = cursor.fetchall()
     else:
+        # Admins see all tickets in Browse
+        query_browse_all_admin = f"""
+        SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+               c.name as category_name, u.full_name as created_by_name,
+               CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+        FROM tickets t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN users u ON t.created_by = u.id
+        LEFT JOIN users a ON t.assigned_to = a.id
+        WHERE {status_condition}
+        ORDER BY {order_by}
+        """
+        cursor.execute(query_browse_all_admin)
+        tickets_browse_all_public = cursor.fetchall()
+        tickets_browse_department = []
+    
+    # Assigned to me
+    query_assigned = f"""
+    SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+           c.name as category_name, u.full_name as created_by_name,
+           CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+    FROM tickets t
+    LEFT JOIN categories c ON t.category_id = c.id
+    LEFT JOIN users u ON t.created_by = u.id
+    LEFT JOIN users a ON t.assigned_to = a.id
+    WHERE t.assigned_to = ? AND {status_condition}
+    ORDER BY {order_by}
+    """
+    cursor.execute(query_assigned, (userid,))
+    tickets_assigned_to_me = cursor.fetchall()
+    
+    # My created
+    query_created = f"""
+    SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+           c.name as category_name, u.full_name as created_by_name,
+           CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+    FROM tickets t
+    LEFT JOIN categories c ON t.category_id = c.id
+    LEFT JOIN users u ON t.created_by = u.id
+    LEFT JOIN users a ON t.assigned_to = a.id
+    WHERE t.created_by = ? AND {status_condition}
+    ORDER BY {order_by}
+    """
+    cursor.execute(query_created, (userid,))
+    tickets_my_created = cursor.fetchall()
+    
+    # Watched
+    query_watched = f"""
+    SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+           c.name as category_name, u.full_name as created_by_name,
+           CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+    FROM tickets t
+    JOIN ticket_watchers tw ON t.id = tw.ticket_id
+    LEFT JOIN categories c ON t.category_id = c.id
+    LEFT JOIN users u ON t.created_by = u.id
+    LEFT JOIN users a ON t.assigned_to = a.id
+    WHERE tw.user_id = ? AND {status_condition}
+    ORDER BY {order_by}
+    """
+    cursor.execute(query_watched, (userid,))
+    tickets_watched = cursor.fetchall()
+    
+    if role == 'admin':
         # Admin: All tickets assigned to IT or any admin
         query_all_for_admin = f"""
-            SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-                            c.name as category_name, u.full_name as created_by_name,
-                            CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name,
-                            CASE WHEN t.created_by = ? THEN 'own' ELSE 'team' END as ticket_type
-            FROM tickets t
-            LEFT JOIN categories c ON t.category_id = c.id
-            LEFT JOIN users u ON t.created_by = u.id
-            LEFT JOIN users a ON t.assigned_to = a.id
-            WHERE (t.assigned_to = 'IT' OR t.assigned_to IN ({placeholders_admins}))
-              AND {status_condition}
-            ORDER BY {order_by}
+        SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+               c.name as category_name, u.full_name as created_by_name,
+               CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name,
+               CASE WHEN t.created_by = ? THEN 'own' ELSE 'team' END as ticket_type
+        FROM tickets t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN users u ON t.created_by = u.id
+        LEFT JOIN users a ON t.assigned_to = a.id
+        WHERE (t.assigned_to = 'IT' OR t.assigned_to IN ({placeholders_admins}))
+        AND {status_condition}
+        ORDER BY {order_by}
         """
-        params_all_for_admin = [user_id] + it_admin_ids
+        params_all_for_admin = [userid] + it_admin_ids
         cursor.execute(query_all_for_admin, params_all_for_admin)
         tickets_all_for_admin = cursor.fetchall()
-
-        # Assigned to me
-        query_assigned_to_me = f"""
-            SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-                   c.name as category_name, u.full_name as created_by_name,
-                   CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
-            FROM tickets t
-            LEFT JOIN categories c ON t.category_id = c.id
-            LEFT JOIN users u ON t.created_by = u.id
-            LEFT JOIN users a ON t.assigned_to = a.id
-            WHERE t.assigned_to = ? AND {status_condition}
-            ORDER BY {order_by}
-        """
-        cursor.execute(query_assigned_to_me, (user_id,))
-        tickets_assigned_to_me = cursor.fetchall()
-
-        # My created (admins)
-        placeholders = ','.join('?' for _ in it_admin_ids) if it_admin_ids else 'NULL'
+        
+        # Admin: My created (admins)
+        placeholders = ','.join(['?'] * len(it_admin_ids)) if it_admin_ids else 'NULL'
         query_my_created = f"""
-            SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-                   c.name as category_name, u.full_name as created_by_name,
-                   CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
-            FROM tickets t
-            LEFT JOIN categories c ON t.category_id = c.id
-            LEFT JOIN users u ON t.created_by = u.id
-            LEFT JOIN users a ON t.assigned_to = a.id
-            WHERE t.created_by IN ({placeholders}) AND {status_condition}
-            ORDER BY {order_by}
+        SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+               c.name as category_name, u.full_name as created_by_name,
+               CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+        FROM tickets t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN users u ON t.created_by = u.id
+        LEFT JOIN users a ON t.assigned_to = a.id
+        WHERE t.created_by IN ({placeholders}) AND {status_condition}
+        ORDER BY {order_by}
         """
         if it_admin_ids:
             cursor.execute(query_my_created, it_admin_ids)
             tickets_my_created = cursor.fetchall()
         else:
             tickets_my_created = []
-
+        
         # Watched by admins (distinct)
         query_watched_admin = f"""
-            SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-                            c.name as category_name, u.full_name as created_by_name,
-                            CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name,
-                            CASE WHEN t.created_by = ? THEN 'own' ELSE 'team' END as ticket_type
-            FROM tickets t
-            JOIN ticket_watchers tw ON t.id = tw.ticket_id
-            LEFT JOIN categories c ON t.category_id = c.id
-            LEFT JOIN users u ON t.created_by = u.id
-            LEFT JOIN users a ON t.assigned_to = a.id
-            WHERE tw.user_id IN ({placeholders_admins})
+        SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+               c.name as category_name, u.full_name as created_by_name,
+               CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name,
+               CASE WHEN t.created_by = ? THEN 'own' ELSE 'team' END as ticket_type
+        FROM tickets t
+        JOIN ticket_watchers tw ON t.id = tw.ticket_id
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN users u ON t.created_by = u.id
+        LEFT JOIN users a ON t.assigned_to = a.id
+        WHERE tw.user_id IN ({placeholders_admins})
         """
-        params_watched = [user_id] + it_admin_ids
+        params_watched = [userid] + it_admin_ids
+        
         if current_filter == 'active':
             query_watched_admin += " AND t.status != 'closed'"
         elif current_filter == 'closed':
             query_watched_admin += " AND t.status = 'closed'"
+        
         query_watched_admin += f" ORDER BY {order_by}"
         cursor.execute(query_watched_admin, params_watched)
         tickets_watched_admin = cursor.fetchall()
-
-        # Tickets per admin
+        
+        # *** KLJUČNI DEO - Tickets by each admin ***
         for admin_user in it_admins:
-            query_by_admin = f"""
+            admin_id = admin_user[0]
+            
+            # Active or all tickets
+            if current_filter != 'closed':
+                query_admin_tickets = f"""
                 SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
                        c.name as category_name, u.full_name as created_by_name,
                        CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
@@ -423,29 +465,32 @@ def dashboard():
                 LEFT JOIN users a ON t.assigned_to = a.id
                 WHERE t.assigned_to = ? AND {status_condition}
                 ORDER BY {order_by}
-            """
-            cursor.execute(query_by_admin, (admin_user[0],))
-            tickets_by_admin[admin_user[0]] = cursor.fetchall()
-
-        # Closed tickets per admin (only when filter closed)
-        if current_filter == 'closed':
-            for admin_user in it_admins:
-                query_closed_by_admin = """
-                    SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-                           c.name as category_name, u.full_name as created_by_name,
-                           CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
-                    FROM tickets t
-                    LEFT JOIN categories c ON t.category_id = c.id
-                    LEFT JOIN users u ON t.created_by = u.id
-                    LEFT JOIN users a ON t.assigned_to = a.id
-                    WHERE t.assigned_to = ? AND t.status = 'closed'
-                    ORDER BY t.updated_at DESC
                 """
-                cursor.execute(query_closed_by_admin, (admin_user[0],))
-                tickets_closed_by_admin[admin_user[0]] = cursor.fetchall()
-
+                cursor.execute(query_admin_tickets, (admin_id,))
+                tickets_by_admin[admin_id] = cursor.fetchall()
+            
+            # Closed tickets
+            if current_filter == 'closed':
+                query_admin_closed = f"""
+                SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+                       c.name as category_name, u.full_name as created_by_name,
+                       CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+                FROM tickets t
+                LEFT JOIN categories c ON t.category_id = c.id
+                LEFT JOIN users u ON t.created_by = u.id
+                LEFT JOIN users a ON t.assigned_to = a.id
+                WHERE t.assigned_to = ? AND t.status = 'closed'
+                ORDER BY {order_by}
+                """
+                cursor.execute(query_admin_closed, (admin_id,))
+                tickets_closed_by_admin[admin_id] = cursor.fetchall()
+    
+    # Get all users for Browse filter
+    cursor.execute("SELECT id, full_name FROM users ORDER BY full_name")
+    all_users_for_filter = cursor.fetchall()
+    
     conn.close()
-
+    
     return render_template(
         'dashboard.html',
         tickets=tickets,
@@ -460,9 +505,11 @@ def dashboard():
         tickets_watched_admin=tickets_watched_admin,
         tickets_all_for_admin=tickets_all_for_admin,
         tickets_by_admin=tickets_by_admin,
-        tickets_closed_by_admin=tickets_closed_by_admin
+        tickets_closed_by_admin=tickets_closed_by_admin,
+        tickets_browse_all_public=tickets_browse_all_public,
+        tickets_browse_department=tickets_browse_department,
+        all_users_for_filter=all_users_for_filter
     )
-
 
 @app.route('/create_ticket', methods=['GET', 'POST'])
 @login_required
@@ -503,10 +550,11 @@ def create_ticket():
                     form=request.form
                 )
 
+            is_private = 1 if request.form.get('is_private') else 0
             cursor.execute("""
-                INSERT INTO tickets (title, description, priority, category_id, due_date, created_by, assigned_to, status, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'new', datetime('now', 'localtime'), datetime('now', 'localtime'))
-            """, (title, description, priority, category_id, due_date, user_id, assigned_to_db))
+                INSERT INTO tickets (title, description, priority, category_id, due_date, created_by, assigned_to, is_private, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', datetime('now', 'localtime'), datetime('now', 'localtime'))
+            """, (title, description, priority, category_id, due_date, user_id, assigned_to_db, is_private))
             conn.commit()
 
             ticket_id = cursor.lastrowid
@@ -614,7 +662,8 @@ def ticket_detail(ticket_id):
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT t.*, c.name as category_name, u.full_name as created_by_name, a.full_name as assigned_to_name
+        SELECT t.id, t.title, t.description, t.category_id, t.priority, t.status, t.created_by, t.assigned_to, t.is_private, t.created_at, t.updated_at, t.due_date,
+            c.name as category_name, u.full_name as created_by_name, a.full_name as assigned_to_name
         FROM tickets t
         LEFT JOIN categories c ON t.category_id = c.id
         LEFT JOIN users u ON t.created_by = u.id
@@ -627,14 +676,19 @@ def ticket_detail(ticket_id):
         conn.close()
         return redirect(url_for('dashboard'))
 
-    # Access check: creator, assignee or watcher, or admin
-    if role != 'admin' and user_id != ticket[6] and user_id != ticket[7]:
-        cursor.execute("SELECT 1 FROM ticket_watchers WHERE ticket_id = ? AND user_id = ?", (ticket_id, user_id))
-        watcher_check = cursor.fetchone()
-        if not watcher_check:
-            flash('You do not have permission to view this ticket.', 'error')
-            conn.close()
-            return redirect(url_for('dashboard'))
+    # Check if user has permission to view this ticket
+    if role != 'admin':
+        # If ticket is PUBLIC, everyone can view it
+        if ticket[8] == 0:  # is_private = 0 means PUBLIC
+            pass  # Allow access
+        else:
+            # If ticket is PRIVATE, only creator, assigned, or watchers can view
+            if ticket[6] != user_id and ticket[7] != user_id:
+                # Check if user is a watcher
+                cursor.execute("SELECT 1 FROM ticket_watchers WHERE ticket_id = ? AND user_id = ?", (ticket_id, user_id))
+                if not cursor.fetchone():
+                    flash('You do not have permission to view this ticket.', 'danger')
+                    return redirect(url_for('dashboard'))
 
     # Watchers (with IDs)
     cursor.execute("""
@@ -1299,10 +1353,11 @@ def edit_ticket(ticket_id):
                         form=request.form
                     )
 
+                is_private = 1 if request.form.get('is_private') else 0
                 cursor.execute("""
-                    UPDATE tickets SET title = ?, description = ?, priority = ?, category_id = ?, due_date = ?, assigned_to = ?, updated_at = datetime('now', 'localtime')
+                    UPDATE tickets SET title = ?, description = ?, priority = ?, category_id = ?, due_date = ?, assigned_to = ?, is_private = ?, updated_at = datetime('now', 'localtime')
                     WHERE id = ?
-                """, (title, description, priority, category_id, due_date, assigned_to_form, ticket_id))
+                """, (title, description, priority, category_id, due_date, assigned_to_form, is_private, ticket_id))
                 conn.commit()
 
                 cursor.execute("DELETE FROM ticket_watchers WHERE ticket_id = ?", (ticket_id,))

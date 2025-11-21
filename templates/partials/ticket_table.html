@@ -17,7 +17,8 @@
     </thead>
     <tbody>
         {% for ticket in tickets %}
-        <tr>
+        <tr data-assigned-to="{{ ticket[7] if ticket[7] is not none else '' }}"
+            data-visibility="{% if current_tab in ['browse_all', 'browse_dept', 'browse_it'] %}public{% else %}private{% endif %}">
             <td>{{ ticket[0] }}</td>
             <td>{{ ticket[1] }}</td>
             <td>
@@ -34,22 +35,64 @@
             <td>{{ ticket[5] }}</td> <!-- Last Updated -->
 
             <td>
+                {# Determine whether the currently assigned user is one of the IT admins #}
+                {% set assigned_is_admin = False %}
+                {% for a in it_admins %}
+                    {% if (ticket[7]|default('')|string) == (a[0]|string) %}
+                        {% set assigned_is_admin = True %}
+                    {% endif %}
+                {% endfor %}
+
                 {% if role == 'admin' and current_tab != 'watcher' %}
-                <form method="POST" action="{{ url_for('assign_ticket') }}" class="d-inline">
-                    <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
-                    <select name="assigned_to" class="form-select form-select-sm" style="width: 140px;" onchange="this.form.submit()">
-                        <option value="">IT</option>
-                        {% for admin in it_admins %}
-                            {% if admin[1].lower() != 'admin' %}
-                            <option value="{{ admin[0] }}" {{ 'selected' if ticket[7] == admin[0] else '' }}>
-                                {{ admin[1] }}
-                            </option>
-                            {% endif %}
-                        {% endfor %}
-                    </select>
-                </form>
+                    {# 
+                    Admin view:
+                    - If ticket is unassigned or assigned_to == "IT" -> show select to assign (IT + admins)
+                    - If ticket is assigned to an admin -> show select (admin selected)
+                    - If ticket is assigned to a non-admin user -> show plain text (cannot change)
+                    #}
+
+                    {% if ticket[7] is none or (ticket[7]|default('')|string) == '' %}
+                        <!-- Ticket unassigned: show select -->
+                        <form method="POST" action="{{ url_for('assign_ticket') }}" class="d-inline">
+                            <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
+                            <select name="assigned_to" class="form-select form-select-sm" style="width: 140px;" onchange="this.form.submit()">
+                                <option value="IT">IT</option>
+                                {% for admin in it_admins %}
+                                    {% if admin[1].lower() != 'admin' %}
+                                    <option value="{{ admin[0] }}">{{ admin[1] }}</option>
+                                    {% endif %}
+                                {% endfor %}
+                            </select>
+                        </form>
+
+                    {% elif (ticket[7]|string) == 'IT' or assigned_is_admin %}
+                        <!-- Assigned to IT or an admin: allow admin to reassign (select shown, correct option selected) -->
+                        <form method="POST" action="{{ url_for('assign_ticket') }}" class="d-inline">
+                            <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
+                            <select name="assigned_to" class="form-select form-select-sm" style="width: 140px;" onchange="this.form.submit()">
+                                <option value="IT" {{ 'selected' if (ticket[7]|string) == 'IT' else '' }}>IT</option>
+                                {% for admin in it_admins %}
+                                    {% if admin[1].lower() != 'admin' %}
+                                    <option value="{{ admin[0] }}" {{ 'selected' if (ticket[7]|string) == (admin[0]|string) else '' }}>
+                                        {{ admin[1] }}
+                                    </option>
+                                    {% endif %}
+                                {% endfor %}
+                            </select>
+                        </form>
+
+                    {% else %}
+                        <!-- Assigned to a non-admin user: show plain name and DO NOT allow change -->
+                        {{ ticket[11] or 'N/A' }}
+                    {% endif %}
+
                 {% else %}
-                {{ ticket[11] or 'IT' }}
+                    {# Non-admin view (or watcher tab): just display who is assigned #}
+                    {% if (ticket[7]|default('')|string) == 'IT' %}
+                        IT
+                    {% else %}
+                        {{ ticket[11] or 'N/A' }}
+                    {% endif %}
                 {% endif %}
             </td>
 
