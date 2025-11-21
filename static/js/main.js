@@ -81,25 +81,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-   // Auto-refresh dashboard every 30 seconds (bez promene aktivnog taba)
-    if (window.location.pathname === '/dashboard') {
-        setInterval(function() {
-            // Only refresh if user is still active (no modals open, etc.)
-            if (!document.querySelector('.modal.show')) {
-                // Sačuvaj trenutni aktivni tab
-                const activeTab = document.querySelector('#ticketTabs .nav-link.active');
-                const activeTabId = activeTab ? activeTab.id : null;
-                
-                // Sačuvaj u localStorage
-                if (activeTabId) {
-                    localStorage.setItem('activeTicketTab', activeTabId);
-                }
-                
-                location.reload();
-            }
-        }, 30000);
-    }
-
     // Search functionality
     const searchInput = document.getElementById('ticket-search');
     if (searchInput) {

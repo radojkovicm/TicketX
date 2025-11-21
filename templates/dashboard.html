@@ -67,7 +67,7 @@
         <button class="nav-link active" id="assigned-tab" data-bs-toggle="tab" data-bs-target="#assigned" type="button" role="tab" aria-controls="assigned" aria-selected="true">Assigned to me</button>
     </li>
     <li class="nav-item" role="presentation">
-        <button class="nav-link" id="all-tab" data-bs-toggle="tab" data-bs-target="#all" type="button" role="tab" aria-controls="all" aria-selected="false">All Tickets</button>
+        <button class="nav-link" id="browse-tab" data-bs-toggle="tab" data-bs-target="#browse" type="button" role="tab" aria-controls="browse" aria-selected="false">Browse Tickets</button>
     </li>
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="created-tab" data-bs-toggle="tab" data-bs-target="#created" type="button" role="tab" aria-controls="created" aria-selected="false">My Created Tickets</button>
@@ -90,28 +90,61 @@
         {% include 'partials/ticket_table.html' %}
     </div>
     
-    <!-- All Tickets -->
-    <div class="tab-pane fade" id="all" role="tabpanel" aria-labelledby="all-tab">
-        {% set tickets = tickets_all_for_admin %}
-        {% set current_tab = 'all' %}
-        {% include 'partials/ticket_table.html' %}
+    <!-- Browse Tickets -->
+    <div class="tab-pane fade" id="browse" role="tabpanel" aria-labelledby="browse-tab">
+        <ul class="nav nav-pills mb-3" id="browseTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="browse-all-tab" data-bs-toggle="pill" data-bs-target="#browse-all" type="button" role="tab">All Public</button>
+            </li>
+        </ul>
+        
+        <!-- Filter by Assigned To -->
+        <div class="mb-3">
+            <label for="browseAssignedFilter" class="form-label">Filter by Assigned To:</label>
+            <select class="form-select" id="browseAssignedFilter" style="max-width: 300px;">
+                <option value="" {% if not request.args.get('assigned') %}selected{% endif %}>All Users</option>
+                <option value="IT" {% if request.args.get('assigned', 'IT') == 'IT' %}selected{% endif %}>IT</option>
+                {% for user in all_users_for_filter %}
+                <option value="{{ user[0] }}">{{ user[1] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div class="tab-content" id="browseTabsContent">
+            <div class="tab-pane fade show active" id="browse-all" role="tabpanel">
+                {% set tickets = tickets_browse_all_public %}
+                {% set current_tab = 'browse_all' %}
+                {% include 'partials/ticket_table.html' %}
+            </div>
+        </div>
     </div>
+    
     <div class="tab-pane fade" id="created" role="tabpanel" aria-labelledby="created-tab">
         {% set tickets = tickets_my_created %}
         {% set current_tab = 'created' %}
         {% include 'partials/ticket_table.html' %}
     </div>
+    
     <div class="tab-pane fade" id="watched" role="tabpanel" aria-labelledby="watched-tab">
         {% set tickets = tickets_watched_admin %}
         {% set current_tab = 'watched' %}
         {% include 'partials/ticket_table.html' %}
     </div>
+    
     {% for admin_user in it_admins %}
     <div class="tab-pane fade" id="admin-{{ admin_user[0] }}" role="tabpanel" aria-labelledby="admin-{{ admin_user[0] }}-tab">
         {% if current_filter == 'closed' %}
-            {% set tickets = tickets_closed_by_admin.get(admin_user[0], []) %}
+            {% if admin_user[0] in tickets_closed_by_admin %}
+                {% set tickets = tickets_closed_by_admin[admin_user[0]] %}
+            {% else %}
+                {% set tickets = [] %}
+            {% endif %}
         {% else %}
-            {% set tickets = tickets_by_admin.get(admin_user[0], []) %}
+            {% if admin_user[0] in tickets_by_admin %}
+                {% set tickets = tickets_by_admin[admin_user[0]] %}
+            {% else %}
+                {% set tickets = [] %}
+            {% endif %}
         {% endif %}
         {% set current_tab = 'admin_' ~ admin_user[0] %}
         {% include 'partials/ticket_table.html' %}
@@ -131,6 +164,9 @@
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="watched-tab" data-bs-toggle="tab" data-bs-target="#watched" type="button" role="tab" aria-controls="watched" aria-selected="false">Watched Tickets</button>
     </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="browse-tab" data-bs-toggle="tab" data-bs-target="#browse" type="button" role="tab" aria-controls="browse" aria-selected="false">Browse Tickets</button>
+    </li>
 </ul>
 
 <div class="tab-content" id="ticketTabsContent">
@@ -139,15 +175,57 @@
         {% set current_tab = 'assigned' %}
         {% include 'partials/ticket_table.html' %}
     </div>
+    
     <div class="tab-pane fade" id="created" role="tabpanel" aria-labelledby="created-tab">
         {% set tickets = tickets_my_created %}
         {% set current_tab = 'created' %}
         {% include 'partials/ticket_table.html' %}
     </div>
+    
     <div class="tab-pane fade" id="watched" role="tabpanel" aria-labelledby="watched-tab">
         {% set tickets = tickets_watched %}
         {% set current_tab = 'watched' %}
         {% include 'partials/ticket_table.html' %}
+    </div>
+    
+    <div class="tab-pane fade" id="browse" role="tabpanel" aria-labelledby="browse-tab">
+        <ul class="nav nav-pills mb-3" id="browseTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="browse-all-tab" data-bs-toggle="pill" data-bs-target="#browse-all" type="button" role="tab">All Public</button>
+            </li>
+            {% if session.department_id %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="browse-dept-tab" data-bs-toggle="pill" data-bs-target="#browse-dept" type="button" role="tab">My Department</button>
+            </li>
+            {% endif %}
+        </ul>
+        
+        <!-- Filter by Assigned To -->
+        <div class="mb-3">
+            <label for="browseAssignedFilter" class="form-label">Filter by Assigned To:</label>
+            <select class="form-select" id="browseAssignedFilter" style="max-width: 300px;">
+                <option value="">All Users</option>
+                <option value="IT">IT</option>
+                {% for user in all_users_for_filter %}
+                <option value="{{ user[0] }}">{{ user[1] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div class="tab-content" id="browseTabsContent">
+            <div class="tab-pane fade show active" id="browse-all" role="tabpanel">
+                {% set tickets = tickets_browse_all_public %}
+                {% set current_tab = 'browse_all' %}
+                {% include 'partials/ticket_table.html' %}
+            </div>
+            {% if session.department_id %}
+            <div class="tab-pane fade" id="browse-dept" role="tabpanel">
+                {% set tickets = tickets_browse_department %}
+                {% set current_tab = 'browse_dept' %}
+                {% include 'partials/ticket_table.html' %}
+            </div>
+            {% endif %}
+        </div>
     </div>
 </div>
 {% endif %}
@@ -163,7 +241,8 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  var triggerTabList = [].slice.call(document.querySelectorAll('#ticketTabs button'))
+  // --- tab persistence ---
+  var triggerTabList = [].slice.call(document.querySelectorAll('#ticketTabs button'));
   triggerTabList.forEach(function(triggerEl) {
     triggerEl.addEventListener('shown.bs.tab', function(event) {
       if (typeof(Storage) !== "undefined") {
@@ -181,6 +260,52 @@ document.addEventListener('DOMContentLoaded', function() {
         tab.show();
       }
     }
+  }
+
+  // --- FILTER: Browse Assigned To ---
+  var filterSel = document.getElementById('browseAssignedFilter');
+  if (filterSel) {
+    function applyAssignedFilter() {
+      var selected = filterSel.value;
+      // Primenjuj SAMO na Browse tab-ove, ne na sve tabove
+      var browseTabsContent = document.getElementById('browseTabsContent');
+      if (!browseTabsContent) return;
+      
+      var activeTab = browseTabsContent.querySelector('.tab-pane.active');
+      if (!activeTab) return;
+
+      var rows = activeTab.querySelectorAll('tbody tr');
+      rows.forEach(function(row) {
+        var assignedTo = row.getAttribute('data-assigned-to') || '';
+        var show;
+        if (!selected) {
+          show = true;
+        } else if (selected === 'IT') {
+          show = (assignedTo === 'IT');
+        } else {
+          show = (assignedTo === selected);
+        }
+        row.style.display = show ? '' : 'none';
+      });
+    }
+
+    // pozovi filter odmah pri učitavanju
+    applyAssignedFilter();
+
+    // i svaki put kada se select menja
+    filterSel.addEventListener('change', applyAssignedFilter);
+  }
+
+  // --- Reset filter when switching between Browse sub-tabs ---
+  var browseButtons = document.querySelectorAll('#browseTabs button');
+  var sel = document.getElementById('browseAssignedFilter');
+  if (browseButtons && browseButtons.length && sel) {
+    browseButtons.forEach(function(button) {
+      button.addEventListener('click', function() {
+        sel.value = 'IT'; // po defaultu IT kada se prelazi na sub-tab
+        sel.dispatchEvent(new Event('change'));
+      });
+    });
   }
 });
 </script>
