@@ -1,157 +1,514 @@
-<table class="table table-striped">
-    <thead>
-        <tr>
-            <th>ID</th>
-            <th>Title</th>
-            <th>Priority</th>
-            <th>Status</th>
-            <th>Created At</th>
-            <th>Last Updated</th> <!-- nova kolona -->
-            <th>Assigned To</th>
-            <th>Created By</th>
-            <th>Due Date</th>
-            {% if current_tab != 'watcher' %}
-            <th>Actions</th>
-            {% endif %}
-        </tr>
-    </thead>
-    <tbody>
-        {% for ticket in tickets %}
-        <tr data-assigned-to="{{ ticket[7] if ticket[7] is not none else '' }}"
-            data-visibility="{% if current_tab in ['browse_all', 'browse_dept', 'browse_it'] %}public{% else %}private{% endif %}">
-            <td>{{ ticket[0] }}</td>
-            <td>{{ ticket[1] }}</td>
-            <td>
-                <span class="badge bg-{{ 'danger' if ticket[2] == 'high' else 'warning' if ticket[2] == 'medium' else 'info' }}">
-                    {{ ticket[2].title() }}
-                </span>
-            </td>
-            <td>
-                <span class="badge bg-{{ 'success' if ticket[3] == 'closed' else 'primary' if ticket[3] == 'in_progress' else 'warning' if ticket[3] == 'awaiting_confirmation' else 'secondary' }}">
-                    {{ ticket[3].replace('_', ' ').title() }}
-                </span>
-            </td>
-            <td>{{ ticket[4] }}</td>
-            <td>{{ ticket[5] }}</td> <!-- Last Updated -->
-
-            <td>
-                {# Determine whether the currently assigned user is one of the IT admins #}
-                {% set assigned_is_admin = False %}
-                {% for a in it_admins %}
-                    {% if (ticket[7]|default('')|string) == (a[0]|string) %}
-                        {% set assigned_is_admin = True %}
-                    {% endif %}
-                {% endfor %}
-
-                {% if role == 'admin' and current_tab != 'watcher' %}
-                    {# 
-                    Admin view:
-                    - If ticket is unassigned or assigned_to == "IT" -> show select to assign (IT + admins)
-                    - If ticket is assigned to an admin -> show select (admin selected)
-                    - If ticket is assigned to a non-admin user -> show plain text (cannot change)
-                    #}
-
-                    {% if ticket[7] is none or (ticket[7]|default('')|string) == '' %}
-                        <!-- Ticket unassigned: show select -->
-                        <form method="POST" action="{{ url_for('assign_ticket') }}" class="d-inline">
-                            <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
-                            <select name="assigned_to" class="form-select form-select-sm" style="width: 140px;" onchange="this.form.submit()">
-                                <option value="IT">IT</option>
-                                {% for admin in it_admins %}
-                                    {% if admin[1].lower() != 'admin' %}
-                                    <option value="{{ admin[0] }}">{{ admin[1] }}</option>
-                                    {% endif %}
-                                {% endfor %}
-                            </select>
-                        </form>
-
-                    {% elif (ticket[7]|string) == 'IT' or assigned_is_admin %}
-                        <!-- Assigned to IT or an admin: allow admin to reassign (select shown, correct option selected) -->
-                        <form method="POST" action="{{ url_for('assign_ticket') }}" class="d-inline">
-                            <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
-                            <select name="assigned_to" class="form-select form-select-sm" style="width: 140px;" onchange="this.form.submit()">
-                                <option value="IT" {{ 'selected' if (ticket[7]|string) == 'IT' else '' }}>IT</option>
-                                {% for admin in it_admins %}
-                                    {% if admin[1].lower() != 'admin' %}
-                                    <option value="{{ admin[0] }}" {{ 'selected' if (ticket[7]|string) == (admin[0]|string) else '' }}>
-                                        {{ admin[1] }}
-                                    </option>
-                                    {% endif %}
-                                {% endfor %}
-                            </select>
-                        </form>
-
-                    {% else %}
-                        <!-- Assigned to a non-admin user: show plain name and DO NOT allow change -->
-                        {{ ticket[11] or 'N/A' }}
-                    {% endif %}
-
-                {% else %}
-                    {# Non-admin view (or watcher tab): just display who is assigned #}
-                    {% if (ticket[7]|default('')|string) == 'IT' %}
-                        IT
-                    {% else %}
-                        {{ ticket[11] or 'N/A' }}
-                    {% endif %}
-                {% endif %}
-            </td>
-
-            <td>{{ ticket[10] or 'N/A' }}</td> {# Created By #}
-            <td>{{ ticket[8] or 'N/A' }}</td> {# Due Date #}
-
-            {% if current_tab != 'watcher' %}
-            <td>
-                <a href="{{ url_for('ticket_detail', ticket_id=ticket[0]) }}" class="btn btn-sm btn-outline-primary">View</a>
-
-                {% if role == 'admin' %}
-                    {% if ticket[3] != 'closed' %}
-                    <form method="POST" action="{{ url_for('update_ticket_status') }}" class="d-inline">
-                        <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
-                        {% if ticket[3] == 'new' %}
-                        <button type="submit" name="status" value="assigned" class="btn btn-sm btn-info">Assign</button>
-                        {% elif ticket[3] == 'assigned' %}
-                        <button type="submit" name="status" value="in_progress" class="btn btn-sm btn-success">Start Work</button>
-                        {% elif ticket[3] == 'in_progress' %}
-                        <button type="submit" name="status" value="awaiting_confirmation" class="btn btn-sm btn-warning">Request Confirmation</button>
+{% if tickets %}
+<div class="table-responsive">
+    <table class="table table-hover table-sm align-middle">
+        <thead class="table-light sticky-top">
+            <tr>
+                <th style="width: 50px;" class="text-center">ID</th>
+                <th style="width: 25%;">Title</th>
+                <th style="width: 90px;" class="text-center">Priority</th>
+                <th style="width: 110px;" class="text-center">Status</th>
+                <th style="width: 12%;">Category</th>
+                <th style="width: 12%;">Created By</th>
+                <th style="width: 12%;">Assigned To</th>
+                <th style="width: 105px;">Created</th>
+                <th style="width: 105px;">Updated</th>
+                <th style="width: 95px;">Due Date</th>
+                <th style="width: 80px;" class="text-center">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ticket in tickets %}
+            <tr data-assigned-to="{{ ticket[7] if ticket[7] else '' }}" class="ticket-row">
+                <!-- Ticket ID -->
+                <td class="text-center">
+                    <a href="{{ url_for('ticket_detail', ticket_id=ticket[0]) }}" class="badge bg-primary text-decoration-none">
+                        #{{ ticket[0] }}
+                    </a>
+                </td>
+                
+                <!-- Title -->
+                <td>
+                    <a href="{{ url_for('ticket_detail', ticket_id=ticket[0]) }}" class="text-decoration-none text-dark fw-medium">
+                        {% set title = ticket[1]|string %}
+                        {% if title and title|length > 45 %}
+                            <span title="{{ title }}">{{ title[:45] }}...</span>
+                        {% elif title %}
+                            {{ title }}
+                        {% else %}
+                            <em class="text-muted">No title</em>
                         {% endif %}
-                    </form>
+                    </a>
+                </td>
+                
+                <!-- Priority Badge -->
+                <td class="text-center">
+                    {% if ticket[2] == 'high' %}
+                        <span class="badge bg-danger">
+                            <i class="bi bi-exclamation-triangle-fill"></i> High
+                        </span>
+                    {% elif ticket[2] == 'medium' %}
+                        <span class="badge bg-warning text-dark">
+                            <i class="bi bi-exclamation-circle"></i> Medium
+                        </span>
+                    {% elif ticket[2] == 'low' %}
+                        <span class="badge bg-success">
+                            <i class="bi bi-check-circle"></i> Low
+                        </span>
+                    {% else %}
+                        <span class="badge bg-secondary">{{ ticket[2] }}</span>
                     {% endif %}
-                {% endif %}
-
-                {% if role != 'admin' and session.user_id == ticket[7] %}
-                    {% if ticket[3] == 'assigned' or ticket[3] == 'new' %}
-                    <form method="POST" action="{{ url_for('update_ticket_status') }}" class="d-inline">
-                        <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
-                        <button type="submit" name="status" value="in_progress" class="btn btn-sm btn-success">Start Work</button>
-                    </form>
+                </td>
+                
+                <!-- Status Badge -->
+                <td class="text-center">
+                    {% if ticket[3] == 'new' %}
+                        <span class="badge bg-info">
+                            <i class="bi bi-star-fill"></i> New
+                        </span>
+                    {% elif ticket[3] == 'assigned' %}
+                        <span class="badge bg-primary">
+                            <i class="bi bi-person-check"></i> Assigned
+                        </span>
                     {% elif ticket[3] == 'in_progress' %}
-                    <form method="POST" action="{{ url_for('update_ticket_status') }}" class="d-inline">
-                        <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
-                        <button type="submit" name="status" value="awaiting_confirmation" class="btn btn-sm btn-warning">Request Confirmation</button>
-                    </form>
+                        <span class="badge bg-warning text-dark">
+                            <i class="bi bi-hourglass-split"></i> In Progress
+                        </span>
+                    {% elif ticket[3] == 'awaiting_confirmation' %}
+                        <span class="badge" style="background-color: #fd7e14;">
+                            <i class="bi bi-clock"></i> Awaiting
+                        </span>
+                    {% elif ticket[3] == 'closed' %}
+                        <span class="badge bg-success">
+                            <i class="bi bi-check-circle-fill"></i> Closed
+                        </span>
+                    {% else %}
+                        <span class="badge bg-secondary">{{ ticket[3]|replace('_', ' ')|title }}</span>
                     {% endif %}
-                {% endif %}
+                </td>
+                
+                <!-- Category -->
+                <td>
+                    {% if ticket[9] %}
+                        <span class="badge bg-light text-dark border" style="font-weight: normal;">
+                            <i class="bi bi-tag"></i> {{ ticket[9] }}
+                        </span>
+                    {% else %}
+                        <span class="text-muted small">-</span>
+                    {% endif %}
+                </td>
+                
+                <!-- Created By -->
+                <td>
+                    {% if ticket[10] %}
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-person-circle text-secondary me-1"></i>
+                            <span class="text-truncate" style="max-width: 100px;" title="{{ ticket[10] }}">
+                                {{ ticket[10] }}
+                            </span>
+                        </div>
+                    {% else %}
+                        <span class="text-muted small">-</span>
+                    {% endif %}
+                </td>
+                
+                <!-- Assigned To -->
+                <td>
+                    {% if ticket[11] %}
+                        {% if ticket[11] == 'IT' %}
+                            <span class="badge bg-dark">
+                                <i class="bi bi-gear-fill"></i> IT
+                            </span>
+                        {% else %}
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-person-check-fill text-primary me-1"></i>
+                                <span class="text-truncate" style="max-width: 100px;" title="{{ ticket[11] }}">
+                                    {{ ticket[11] }}
+                                </span>
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <span class="badge bg-secondary">
+                            <i class="bi bi-question-circle"></i> IT
+                        </span>
+                    {% endif %}
+                </td>
+                
+                <!-- Created Date -->
+                <td class="text-muted small">
+                    {% if ticket[4] %}
+                        <i class="bi bi-calendar-plus"></i> {{ (ticket[4]|string)[:16] }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                
+                <!-- Updated Date -->
+                <td class="text-muted small">
+                    {% if ticket[5] %}
+                        <i class="bi bi-clock-history"></i> {{ (ticket[5]|string)[:16] }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                
+                <!-- Due Date -->
+                <td class="text-center">
+                    {% if ticket[8] and ticket[8] != '' %}
+                        {% set due_date = ticket[8] %}
+                        {% set today = now().strftime('%Y-%m-%d') %}
+                        
+                        {% if due_date < today %}
+                            <span class="badge bg-danger" title="Overdue">
+                                <i class="bi bi-exclamation-triangle-fill"></i> {{ due_date[5:] }}
+                            </span>
+                        {% elif due_date == today %}
+                            <span class="badge bg-warning text-dark" title="Due today">
+                                <i class="bi bi-clock-fill"></i> Today
+                            </span>
+                        {% else %}
+                            <span class="text-muted small">
+                                <i class="bi bi-calendar-event"></i> {{ due_date[5:] }}
+                            </span>
+                        {% endif %}
+                    {% else %}
+                        <span class="text-muted small">-</span>
+                    {% endif %}
+                </td>
+                
+                <!-- Actions Dropdown -->
+                <td class="text-center">
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" 
+                                type="button" 
+                                id="actionsDropdown{{ ticket[0] }}" 
+                                data-bs-toggle="dropdown" 
+                                aria-expanded="false">
+                            <i class="bi bi-three-dots-vertical"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="actionsDropdown{{ ticket[0] }}" style="min-width: 250px;">
+                            <!-- View Details -->
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('ticket_detail', ticket_id=ticket[0]) }}">
+                                    <i class="bi bi-eye text-primary"></i> View Details
+                                </a>
+                            </li>
+                            
+                            <li><hr class="dropdown-divider"></li>
+                            
+                            <!-- Edit (only creator or admin) -->
+                            {% if session.user_id == ticket[6] or session.role == 'admin' %}
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('edit_ticket', ticket_id=ticket[0]) }}">
+                                    <i class="bi bi-pencil text-warning"></i> Edit Ticket
+                                </a>
+                            </li>
+                            {% endif %}
+                            
+                            <!-- ===== INLINE REASSIGN (NO MODAL) ===== -->
+                            {% if session.role == 'admin' or session.user_id == ticket[7] %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li class="dropdown-header">
+                                <i class="bi bi-arrow-left-right"></i> <strong>Reassign Ticket</strong>
+                            </li>
+                            <li>
+                                <div class="px-3 py-2">
+                                    <form method="POST" action="{{ url_for('reassign_ticket', ticket_id=ticket[0]) }}" class="reassign-form-inline">
+                                        <select name="new_assigned_to" class="form-select form-select-sm mb-2" required>
+                                            <option value="">Select user...</option>
+                                            <option value="IT" {% if ticket[7] == 'IT' %}selected{% endif %}>IT</option>
+                                            {% if it_admins %}
+                                            <optgroup label="IT Admins">
+                                                {% for admin in it_admins %}
+                                                <option value="{{ admin[0] }}" {% if ticket[7] == admin[0] %}selected{% endif %}>{{ admin[1] }}</option>
+                                                {% endfor %}
+                                            </optgroup>
+                                            {% endif %}
+                                            {% if all_users_for_filter %}
+                                            <optgroup label="Users">
+                                                {% for user in all_users_for_filter %}
+                                                <option value="{{ user[0] }}" {% if ticket[7] == user[0] %}selected{% endif %}>{{ user[1] }}</option>
+                                                {% endfor %}
+                                            </optgroup>
+                                            {% endif %}
+                                        </select>
+                                        <button type="submit" class="btn btn-primary btn-sm w-100">
+                                            <i class="bi bi-check-lg"></i> Reassign
+                                        </button>
+                                    </form>
+                                </div>
+                            </li>
+                            {% endif %}
+                            
+                            <!-- Status Change Options -->
+                            <li><hr class="dropdown-divider"></li>
+                            
+                            {% set can_change_status = (session.role == 'admin') or (session.user_id == ticket[7]) or (session.user_id == ticket[6]) %}
+                            
+                            {% if can_change_status %}
+                                <li class="dropdown-header">
+                                    <i class="bi bi-gear"></i> <strong>Change Status</strong>
+                                </li>
+                                
+                                <!-- Start Work -->
+                                {% if ticket[3] in ['new', 'assigned'] and (session.role == 'admin' or session.user_id == ticket[7]) %}
+                                <li>
+                                    <form method="POST" action="{{ url_for('update_ticket_status') }}" style="margin: 0;">
+                                        <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
+                                        <input type="hidden" name="status" value="in_progress">
+                                        <button type="submit" class="dropdown-item">
+                                            <i class="bi bi-play-circle text-primary"></i> Start Work
+                                        </button>
+                                    </form>
+                                </li>
+                                {% endif %}
+                                
+                                <!-- Mark Complete -->
+                                {% if ticket[3] == 'in_progress' and (session.role == 'admin' or session.user_id == ticket[7]) %}
+                                <li>
+                                    <form method="POST" action="{{ url_for('update_ticket_status') }}" style="margin: 0;">
+                                        <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
+                                        <input type="hidden" name="status" value="awaiting_confirmation">
+                                        <button type="submit" class="dropdown-item">
+                                            <i class="bi bi-check2-square text-warning"></i> Mark Complete
+                                        </button>
+                                    </form>
+                                </li>
+                                {% endif %}
+                                
+                                <!-- Confirm & Close -->
+                                {% if ticket[3] == 'awaiting_confirmation' and session.user_id == ticket[6] %}
+                                <li>
+                                    <form method="POST" action="{{ url_for('update_ticket_status') }}" style="margin: 0;">
+                                        <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
+                                        <input type="hidden" name="status" value="closed">
+                                        <button type="submit" class="dropdown-item text-success">
+                                            <i class="bi bi-check-circle-fill"></i> Confirm & Close
+                                        </button>
+                                    </form>
+                                </li>
+                                {% endif %}
+                                
+                                <!-- Force Close (Admin) -->
+                                {% if session.role == 'admin' and ticket[3] != 'closed' %}
+                                <li>
+                                    <form method="POST" action="{{ url_for('update_ticket_status') }}" style="margin: 0;">
+                                        <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
+                                        <input type="hidden" name="status" value="closed">
+                                        <button type="submit" class="dropdown-item text-success">
+                                            <i class="bi bi-x-circle-fill"></i> Force Close
+                                        </button>
+                                    </form>
+                                </li>
+                                {% endif %}
+                                
+                                <!-- Reopen -->
+                                {% if ticket[3] == 'closed' and (session.role == 'admin' or session.user_id == ticket[6] or session.user_id == ticket[7]) %}
+                                <li>
+                                    <form method="POST" action="{{ url_for('reopen_ticket', ticket_id=ticket[0]) }}" style="margin: 0;">
+                                        <button type="submit" class="dropdown-item text-info">
+                                            <i class="bi bi-arrow-counterclockwise"></i> Reopen Ticket
+                                        </button>
+                                    </form>
+                                </li>
+                                {% endif %}
+                            {% else %}
+                                <li>
+                                    <span class="dropdown-item text-muted disabled">
+                                        <i class="bi bi-lock-fill"></i> No permission
+                                    </span>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 
-                {% if session.user_id == ticket[6] %}
-                    {% if ticket[3] in ['new', 'assigned'] %}
-                    <a href="{{ url_for('edit_ticket', ticket_id=ticket[0]) }}" class="btn btn-sm btn-outline-warning">Edit</a>
-                    {% endif %}
+<!-- Ticket Count -->
+<div class="d-flex justify-content-between align-items-center mt-3 px-2">
+    <p class="text-muted mb-0 small">
+        Showing <strong class="ticket-count">{{ tickets|length }}</strong> ticket(s)
+    </p>
+    <div class="text-muted small">
+        <i class="bi bi-info-circle"></i> 
+        <span class="badge bg-danger">●</span> High | 
+        <span class="badge bg-warning text-dark">●</span> Medium | 
+        <span class="badge bg-success">●</span> Low
+    </div>
+</div>
 
-                    {% if ticket[3] == 'awaiting_confirmation' %}
-                    <form method="POST" action="{{ url_for('mark_resolved', ticket_id=ticket[0]) }}" class="d-inline">
-                        <button type="submit" class="btn btn-sm btn-outline-success" onclick="return confirm('Confirm that this ticket has been resolved?')">Confirm Resolution</button>
-                    </form>
-                    {% endif %}
+<!-- Reassign Modal -->
+<div class="modal fade" id="reassignModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-arrow-left-right"></i> Reassign Ticket
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="reassignForm">
+                <div class="modal-body">
+                    <p class="text-muted small" id="reassignTicketTitle"></p>
+                    <div class="mb-3">
+                        <label for="new_assigned_to" class="form-label">Assign to:</label>
+                        <select name="new_assigned_to" id="new_assigned_to" class="form-select" required>
+                            <option value="">Select user...</option>
+                            <option value="IT">IT</option>
+                            {% if it_admins %}
+                            <optgroup label="Admins">
+                                {% for admin in it_admins %}
+                                <option value="{{ admin[0] }}">{{ admin[1] }}</option>
+                                {% endfor %}
+                            </optgroup>
+                            {% endif %}
+                            {% if users %}
+                            <optgroup label="Users">
+                                {% for user in users %}
+                                <option value="{{ user[0] }}">{{ user[1] }}</option>
+                                {% endfor %}
+                            </optgroup>
+                            {% endif %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> Reassign
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
-                    {% if ticket[3] in ['new', 'assigned'] %}
-                    <form method="POST" action="{{ url_for('mark_resolved', ticket_id=ticket[0]) }}" class="d-inline">
-                        <button type="submit" class="btn btn-sm btn-outline-success" onclick="return confirm('Mark as resolved?')">Resolve</button>
-                    </form>
-                    {% endif %}
-                {% endif %}
-            </td>
-            {% endif %}
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+<!-- Assign IT Modal -->
+<div class="modal fade" id="assignITModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-person-plus-fill"></i> Assign IT Ticket
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="assignITForm">
+                <div class="modal-body">
+                    <p class="text-muted small mb-3" id="assignITTicketTitle"></p>
+                    <div class="alert alert-info small">
+                        <i class="bi bi-info-circle"></i> Select admin to assign this IT ticket to.
+                    </div>
+                    <div class="mb-3">
+                        <label for="assign_it_to" class="form-label">Assign to:</label>
+                        <select name="new_assigned_to" id="assign_it_to" class="form-select" required>
+                            <option value="">Select admin...</option>
+                            {% if it_admins %}
+                                {% for admin in it_admins %}
+                                <option value="{{ admin[0] }}">{{ admin[1] }}</option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> Assign
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function showReassignModal(element) {
+    var ticketId = element.getAttribute('data-ticket-id');
+    var ticketTitle = element.getAttribute('data-ticket-title');
+    
+    document.getElementById('reassignForm').action = '/reassign_ticket/' + ticketId;
+    document.getElementById('reassignTicketTitle').textContent = 'Ticket #' + ticketId + ': ' + ticketTitle;
+    
+    var modal = new bootstrap.Modal(document.getElementById('reassignModal'));
+    modal.show();
+}
+
+function showAssignITModal(element) {
+    var ticketId = element.getAttribute('data-ticket-id');
+    var ticketTitle = element.getAttribute('data-ticket-title');
+    
+    document.getElementById('assignITForm').action = '/reassign_ticket/' + ticketId;
+    document.getElementById('assignITTicketTitle').textContent = 'Ticket #' + ticketId + ': ' + ticketTitle;
+    
+    var modal = new bootstrap.Modal(document.getElementById('assignITModal'));
+    modal.show();
+}
+</script>
+
+{% else %}
+<div class="alert alert-info d-flex align-items-center" role="alert">
+    <i class="bi bi-info-circle me-2 fs-4"></i>
+    <div>
+        <strong>No tickets found</strong><br>
+        <small>No tickets match the current filter.</small>
+    </div>
+</div>
+{% endif %}
+
+<style>
+.ticket-row {
+    transition: background-color 0.15s ease;
+}
+.ticket-row:hover {
+    background-color: #f8f9fa !important;
+}
+.ticket-row:has(.dropdown.show) {
+    background-color: #e9ecef !important;
+}
+.dropdown-toggle {
+    transition: none !important;
+}
+.table-responsive {
+    overflow: visible !important;
+}
+.dropdown-menu {
+    position: absolute !important;
+    z-index: 1050 !important;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+    min-width: 200px !important;
+}
+tbody tr:last-child .dropdown-menu {
+    transform: translateY(-100%) !important;
+    margin-bottom: 2.5rem !important;
+}
+.dropdown-item {
+    cursor: pointer !important;
+    white-space: nowrap !important;
+}
+.dropdown-item form {
+    margin: 0 !important;
+}
+.dropdown-item button {
+    width: 100% !important;
+    text-align: left !important;
+    border: none !important;
+    background: none !important;
+    padding: 0 !important;
+    color: inherit !important;
+}
+.table thead th {
+    border-bottom: 2px solid #dee2e6;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.5px;
+}
+.badge {
+    font-weight: 500;
+    padding: 0.35em 0.65em;
+}
+</style>

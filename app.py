@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 import os
 from werkzeug.utils import secure_filename
 from models import UserModel, TicketModel, CategoryModel
-from auth import login_required, admin_required
+from auth import login_required, admin_required, get_redirect_target
 from database import Database
 import sys
 import sqlite3
@@ -15,40 +15,75 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import logging
-logging.basicConfig(level=logging.INFO)  # Dodaj ovo na vrhu fajla
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
 
 app = Flask(__name__)
 
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-insecure-only-change-me")
 
-# Na localhost-u koristimo HTTP, pa Secure mora biti False
 IS_HTTPS = (os.getenv("IS_HTTPS", "false").strip().lower() == "true")
 
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 
+# ===== FILE UPLOAD SECURITY =====
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'txt', 'xlsx', 'xls', 'zip', 'rar'}
+ALLOWED_MIME_TYPES = {
+    'image/png', 'image/jpeg', 'image/gif', 
+    'application/pdf', 
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'text/plain',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel',
+    'application/zip',
+    'application/x-rar-compressed'
+}
+
+def log_ticket_activity(ticket_id, user_id, action_type, old_value=None, new_value=None, details=None):
+    """Log ticket activity for audit trail"""
+    db = Database()
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("""
+            INSERT INTO ticket_activity_log (ticket_id, user_id, action_type, old_value, new_value, details)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (ticket_id, user_id, action_type, old_value, new_value, details))
+        conn.commit()
+    except Exception as e:
+        print(f"Error logging activity: {e}")
+    finally:
+        conn.close()
+
+def allowed_file(filename, mimetype):
+    """Validate file extension and MIME type"""
+    if '.' not in filename:
+        return False
+    ext = filename.rsplit('.', 1)[1].lower()
+    return ext in ALLOWED_EXTENSIONS and mimetype in ALLOWED_MIME_TYPES
+# ===== END FILE UPLOAD SECURITY =====
+
 def get_upload_path():
-    """Generate upload path organized by year/month"""
-    now = datetime.now()
-    year_month = now.strftime('%Y/%m')
-    upload_path = os.path.join(app.config['UPLOAD_FOLDER'], year_month)
+    year_month = datetime.now().strftime('%Y-%m')  # 2025-11 (jedan folder)
+    upload_path = os.path.join('static', 'uploads', year_month)
     os.makedirs(upload_path, exist_ok=True)
     return upload_path
 
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB
 
 app.config.update(
-    SESSION_COOKIE_SECURE=IS_HTTPS,    # False na localhost
+    SESSION_COOKIE_SECURE=IS_HTTPS,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE=("None" if IS_HTTPS else "Lax"),
     PERMANENT_SESSION_LIFETIME=timedelta(hours=1),
-    SESSION_REFRESH_EACH_REQUEST=True,    # “rolling” obnavljanje
+    SESSION_REFRESH_EACH_REQUEST=True,
 )
-
-
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-# Notifications
 from notifications import (
     notify_on_ticket_created,
     notify_on_status_change,
@@ -60,11 +95,21 @@ from notifications import (
     notify_on_watchers_added,
 )
 
-# Initialize models
 user_model = UserModel()
 ticket_model = TicketModel()
 category_model = CategoryModel()
 
+# ===== JINJA2 GLOBAL FUNCTIONS =====
+from datetime import datetime
+
+@app.context_processor
+def inject_now():
+    """Make datetime.now() available in all templates"""
+    return {
+        'now': datetime.now,
+        'datetime': datetime
+    }
+# ===== END JINJA2 GLOBALS =====
 
 def _ensure_upload_dir():
     try:
@@ -72,13 +117,68 @@ def _ensure_upload_dir():
     except Exception:
         pass
 
+_ensure_upload_dir()
+# ===== EXISTING CODE ABOVE (imports, config, etc.) =====
+
+def ensure_initial_admin():
+    """
+    Create initial admin user if no admin exists in database.
+    Runs only once on first startup.
+    Credentials are loaded from .env file for security.
+    """
+    
+    if os.getenv('DISABLE_INITIAL_ADMIN_CREATION', 'false').lower() == 'true':
+        return
+    
+    db = Database()
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    
+    # Check if any admin exists
+    cursor.execute("SELECT COUNT(*) FROM users WHERE role = 'admin'")
+    admin_count = cursor.fetchone()[0]
+    
+    if admin_count == 0:
+        # No admin exists, create one from .env
+        admin_username = os.getenv('INITIAL_ADMIN_USERNAME')
+        admin_password = os.getenv('INITIAL_ADMIN_PASSWORD')
+        admin_fullname = os.getenv('INITIAL_ADMIN_FULLNAME', 'System Administrator')
+        admin_email = os.getenv('INITIAL_ADMIN_EMAIL', '')
+        
+        if not admin_username or not admin_password:
+            logging.warning("⚠️  No admin exists and INITIAL_ADMIN_USERNAME/PASSWORD not set in .env!")
+            logging.warning("⚠️  Please add admin credentials to .env file and restart.")
+            conn.close()
+            return
+        
+        # Create initial admin
+        hashed_password = hashlib.sha256(admin_password.encode()).hexdigest()
+        
+        try:
+            cursor.execute("""
+                INSERT INTO users (username, password, full_name, email, role, department_id, is_department_head)
+                VALUES (?, ?, ?, ?, 'admin', NULL, 0)
+            """, (admin_username, hashed_password, admin_fullname, admin_email))
+            conn.commit()
+            logging.info(f"✅ Initial admin user created: {admin_username}")
+            logging.info(f"⚠️  IMPORTANT: Change the admin password immediately after first login!")
+        except Exception as e:
+            logging.error(f"❌ Error creating initial admin: {str(e)}")
+    else:
+        logging.info(f"✅ Admin user(s) already exist ({admin_count} found). Skipping initial setup.")
+        
+    try:
+        ensure_initial_admin()
+    except Exception as e:
+        logging.error(f"❌ Error during initial admin setup: {str(e)}")
+    
+    conn.close()
 
 @app.route('/')
 def index():
     if 'user_id' in session:
         return redirect(url_for('dashboard'))
     return redirect(url_for('login'))
-
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -98,14 +198,20 @@ def login():
             session['department_id'] = user[6]
             session['is_department_head'] = user[7]
             session['_fresh'] = True
-            session['last_activity'] = time.time()
+            session['last_activity'] = time.time()  # DODAJ OVO
+            
             flash(f"Welcome, {user[4]}!", 'success')
+            
+            # Redirect to original page or dashboard
+            from auth import get_redirect_target
+            next_url = get_redirect_target()
+            if next_url:
+                return redirect(next_url)
             return redirect(url_for('dashboard'))
         else:
             flash('Invalid username or password.', 'error')
 
     return render_template('login.html')
-
 
 @app.route('/logout')
 def logout():
@@ -119,11 +225,11 @@ import re
 def valid_email(email):
     if not email:
         return True
-    # very simple email pattern
-    return re.match(r"^[^@\s]+@[^@\s]+.[^@\s]+$", email) is not None
+    return re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email) is not None
 
 def get_departments():
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id, name FROM departments ORDER BY name")
     departments = cursor.fetchall()
@@ -135,10 +241,10 @@ def get_departments():
 def my_profile():
     user_id = session.get('user_id')
 
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
-    # Učitaj podatke o korisniku
     cursor.execute("""
         SELECT id, username, password, email, full_name, role, department_id, is_department_head
         FROM users
@@ -151,17 +257,15 @@ def my_profile():
         flash('User not found.', 'error')
         return redirect(url_for('dashboard'))
 
-    # Departments (za drop-down)
     departments = get_departments()
 
     if request.method == 'POST':
         full_name = request.form.get('full_name', '').strip()
         email = request.form.get('email', '').strip()
-        department_id_raw = request.form.get('department_id')  # može biti None
+        department_id_raw = request.form.get('department_id')
         new_password = request.form.get('new_password', '').strip()
         confirm_password = request.form.get('confirm_password', '').strip()
 
-        # Validacije
         if not full_name:
             flash('Full name is required.', 'error')
             return render_template('my_profile.html',
@@ -174,7 +278,6 @@ def my_profile():
                                 user=user,
                                 departments=departments)
 
-        # Department: dozvoljeno menjanje (po tvom zahtevu)
         department_id = None
         if department_id_raw and department_id_raw.strip() != '':
             try:
@@ -185,9 +288,8 @@ def my_profile():
                                     user=user,
                                     departments=departments)
 
-        # Password: opciono
         update_password = False
-        hashed_password = user[2]  # stari hash iz baze
+        hashed_password = user[2]
         if new_password or confirm_password:
             if new_password != confirm_password:
                 flash('Passwords do not match.', 'error')
@@ -199,11 +301,9 @@ def my_profile():
                 return render_template('my_profile.html',
                                     user=user,
                                     departments=departments)
-            # Zadrži SHA-256 koji već koristiš u importu i dodavanju korisnika
             hashed_password = hashlib.sha256(new_password.encode()).hexdigest()
             update_password = True
 
-        # Update Prepared
         if update_password:
             cursor.execute("""
                 UPDATE users
@@ -219,11 +319,9 @@ def my_profile():
 
         conn.commit()
 
-        # Refresh session (ako menja full_name ili department)
         session['full_name'] = full_name
         session['department_id'] = department_id
 
-        # GDPR log (ako koristiš)
         try:
             log_activity(user_id, 'PROFILE_UPDATED', f'User updated own profile (full_name/email/department/password)')
         except:
@@ -233,52 +331,60 @@ def my_profile():
         flash('Profile updated successfully!', 'success')
         return redirect(url_for('my_profile'))
 
-    # GET
     conn.close()
     return render_template('my_profile.html',
                         user=user,
                         departments=departments)
 
+# ===== WHITELIST FOR SORTING (SQL INJECTION PROTECTION) =====
+ALLOWED_SORT_OPTIONS = {
+    'updated_at_desc': 't.updated_at DESC',
+    'updated_at_asc': 't.updated_at ASC',
+    'created_at_desc': 't.created_at DESC',
+    'created_at_asc': 't.created_at ASC',
+    'priority_desc': "CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END ASC",
+    'priority_asc': "CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END DESC",
+    'due_date_desc': 'CASE WHEN t.due_date IS NULL OR t.due_date = "" THEN 0 ELSE 1 END DESC, t.due_date DESC',
+    'due_date_asc': 'CASE WHEN t.due_date IS NULL OR t.due_date = "" THEN 0 ELSE 1 END DESC, t.due_date ASC'
+}
+# ===== END WHITELIST =====
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
     role = session.get('role')
-    userid = session.get('user_id')
+    user_id = session.get('user_id')
+
     current_filter = request.args.get('filter', 'active')
     assigned_filter = request.args.get('assigned', 'me')
     sort_param = request.args.get('sort', 'updated_at_desc')
-    
-    sort_options = {
-        'updated_at_desc': 't.updated_at DESC',
-        'updated_at_asc': 't.updated_at ASC',
-        'created_at_desc': 't.created_at DESC',
-        'created_at_asc': 't.created_at ASC',
-        'priority_desc': "CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END ASC",
-        'priority_asc': "CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END DESC",
-        'due_date_desc': "CASE WHEN t.due_date IS NULL OR t.due_date = '' THEN 0 ELSE 1 END DESC, t.due_date DESC",
-        'due_date_asc': "CASE WHEN t.due_date IS NULL OR t.due_date = '' THEN 0 ELSE 1 END DESC, t.due_date ASC"
-    }
-    order_by = sort_options.get(sort_param, 't.updated_at DESC')
-    
-    # ISPRAVLJENO: Koristi Database kao instancu
+
+    # Validate sort parameter against whitelist
+    if sort_param not in ALLOWED_SORT_OPTIONS:
+        sort_param = 'updated_at_desc'
+    order_by = ALLOWED_SORT_OPTIONS[sort_param]
+
     db = Database()
     conn = db.get_connection()
     cursor = conn.cursor()
-    
+
     # Load IT admins
-    cursor.execute("SELECT id, full_name FROM users WHERE role = 'admin' AND LOWER(full_name) != 'admin' ORDER BY full_name")
+    cursor.execute("""
+        SELECT id, full_name FROM users
+        WHERE role = 'admin' AND LOWER(full_name) != 'admin'
+        ORDER BY full_name
+    """)
     it_admins = cursor.fetchall()
     it_admin_ids = [admin[0] for admin in it_admins]
-    placeholders_admins = ','.join(['?'] * len(it_admin_ids)) if it_admin_ids else 'NULL'
-    
-    # Status condition based on filter
+    placeholders_admins = ','.join('?' for _ in it_admin_ids) if it_admin_ids else 'NULL'
+
+    # Status condition
     status_condition = "1=1"
     if current_filter == 'active':
         status_condition = "t.status != 'closed'"
     elif current_filter == 'closed':
         status_condition = "t.status = 'closed'"
-    
-    # Initialize all ticket collections
+
     tickets = []
     tickets_assigned_to_me = []
     tickets_my_created = []
@@ -289,13 +395,67 @@ def dashboard():
     tickets_closed_by_admin = {}
     tickets_browse_all_public = []
     tickets_browse_department = []
-    
+
     if role != 'admin':
+        # All Public Tickets (non-admin users)
+        query_browse_all = f"""
+            SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+                c.name as category_name, u.full_name as created_by_name,
+                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+            FROM tickets t
+            LEFT JOIN categories c ON t.category_id = c.id
+            LEFT JOIN users u ON t.created_by = u.id
+            LEFT JOIN users a ON t.assigned_to = a.id
+            WHERE t.is_private = 0 AND {status_condition}
+            ORDER BY {order_by}
+        """
+        cursor.execute(query_browse_all)
+        tickets_browse_all_public = cursor.fetchall()
+
+        # My Department Tickets
+        user_department_id = session.get('department_id')
+        if user_department_id:
+            query_browse_dept = f"""
+                SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+                    c.name as category_name, u.full_name as created_by_name,
+                    CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+                FROM tickets t
+                LEFT JOIN categories c ON t.category_id = c.id
+                LEFT JOIN users u ON t.created_by = u.id
+                LEFT JOIN users a ON t.assigned_to = a.id
+                LEFT JOIN ticket_watchers tw ON t.id = tw.ticket_id
+                WHERE (u.department_id = ? OR a.department_id = ?)
+                AND (t.is_private = 0 OR t.created_by = ? OR t.assigned_to = ? OR tw.user_id = ?)
+                AND {status_condition}
+                ORDER BY {order_by}
+            """
+            cursor.execute(query_browse_dept, (user_department_id, user_department_id, user_id, user_id, user_id))
+            tickets_browse_department = cursor.fetchall()
+    else:
+        # Admins see all tickets in Browse
+        query_browse_all_admin = f"""
+            SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+                c.name as category_name, u.full_name as created_by_name,
+                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+            FROM tickets t
+            LEFT JOIN categories c ON t.category_id = c.id
+            LEFT JOIN users u ON t.created_by = u.id
+            LEFT JOIN users a ON t.assigned_to = a.id
+            WHERE {status_condition}
+            ORDER BY {order_by}
+        """
+        cursor.execute(query_browse_all_admin)
+        tickets_browse_all_public = cursor.fetchall()
+        tickets_browse_department = []
+
+    if role != 'admin':
+        # ===== REGULAR USER QUERIES =====
+        
         # Browse Tickets: All Public & My Department
         query_browse_all = f"""
         SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-               c.name as category_name, u.full_name as created_by_name,
-               CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+            c.name as category_name, u.full_name as created_by_name,
+            CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
         FROM tickets t
         LEFT JOIN categories c ON t.category_id = c.id
         LEFT JOIN users u ON t.created_by = u.id
@@ -309,115 +469,180 @@ def dashboard():
         user_department_id = session.get('department_id')
         if user_department_id:
             query_browse_dept = f"""
+                SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+                    c.name as category_name, u.full_name as created_by_name,
+                    CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+                FROM tickets t
+                LEFT JOIN categories c ON t.category_id = c.id
+                LEFT JOIN users u ON t.created_by = u.id
+                LEFT JOIN users a ON t.assigned_to = a.id
+                LEFT JOIN ticket_watchers tw ON t.id = tw.ticket_id
+                WHERE (
+                    (u.department_id = ? OR a.department_id = ?) AND t.is_private = 0
+                    OR t.created_by = ?
+                    OR t.assigned_to = ?
+                    OR tw.user_id = ?
+                )
+            AND {status_condition}
+            ORDER BY {order_by}
+
+            """
+            cursor.execute(query_browse_dept, (user_department_id, user_department_id, user_id, user_id, user_id))
+            tickets_browse_department = cursor.fetchall()
+        
+        # === REGULAR USERS QUERIES ===
+        if role != 'admin':
+            # 1. Assigned to me
+            if current_filter == 'closed':
+                # Show ONLY closed tickets
+                query_assigned = f"""
+                    SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, 
+                        t.created_by, t.assigned_to, t.due_date,
+                        c.name as category_name,
+                        u.full_name as created_by_name,
+                        CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+                    FROM tickets t
+                    LEFT JOIN categories c ON t.category_id = c.id
+                    LEFT JOIN users u ON t.created_by = u.id
+                    LEFT JOIN users a ON t.assigned_to = a.id
+                    WHERE t.assigned_to = ? AND t.status = 'closed'
+                    ORDER BY {order_by}
+                """
+            else:
+                # Show active or all (excluding closed for active)
+                status_cond = "t.status != 'closed'" if current_filter == 'active' else "1=1"
+                query_assigned = f"""
+                    SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, 
+                        t.created_by, t.assigned_to, t.due_date,
+                        c.name as category_name,
+                        u.full_name as created_by_name,
+                        CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+                    FROM tickets t
+                    LEFT JOIN categories c ON t.category_id = c.id
+                    LEFT JOIN users u ON t.created_by = u.id
+                    LEFT JOIN users a ON t.assigned_to = a.id
+                    WHERE t.assigned_to = ? AND {status_cond}
+                    ORDER BY {order_by}
+                """
+            
+            cursor.execute(query_assigned, (user_id,))
+            tickets_assigned_to_me = cursor.fetchall()
+            
+            # 2. My created tickets (same fix)
+            if current_filter == 'closed':
+                query_created = f"""
+                    SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, 
+                        t.created_by, t.assigned_to, t.due_date,
+                        c.name as category_name,
+                        u.full_name as created_by_name,
+                        CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+                    FROM tickets t
+                    LEFT JOIN categories c ON t.category_id = c.id
+                    LEFT JOIN users u ON t.created_by = u.id
+                    LEFT JOIN users a ON t.assigned_to = a.id
+                    WHERE t.created_by = ? AND t.status = 'closed'
+                    ORDER BY {order_by}
+                """
+            else:
+                status_cond = "t.status != 'closed'" if current_filter == 'active' else "1=1"
+                query_created = f"""
+                    SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, 
+                        t.created_by, t.assigned_to, t.due_date,
+                        c.name as category_name,
+                        u.full_name as created_by_name,
+                        CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+                    FROM tickets t
+                    LEFT JOIN categories c ON t.category_id = c.id
+                    LEFT JOIN users u ON t.created_by = u.id
+                    LEFT JOIN users a ON t.assigned_to = a.id
+                    WHERE t.created_by = ? AND {status_cond}
+                    ORDER BY {order_by}
+                """
+            
+            cursor.execute(query_created, (user_id,))
+            tickets_my_created = cursor.fetchall()
+        
+        # Watched
+        query_watched = f"""
             SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-                   c.name as category_name, u.full_name as created_by_name,
-                   CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+                            c.name as category_name, u.full_name as created_by_name,
+                            CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+            FROM tickets t
+            JOIN ticket_watchers tw ON t.id = tw.ticket_id
+            LEFT JOIN categories c ON t.category_id = c.id
+            LEFT JOIN users u ON t.created_by = u.id
+            LEFT JOIN users a ON t.assigned_to = a.id
+            WHERE tw.user_id = ? AND {status_condition}
+            ORDER BY {order_by}
+        """
+        cursor.execute(query_watched, (user_id,))
+        tickets_watched = cursor.fetchall()
+
+    else:
+        # ===== ADMIN QUERIES =====
+        
+        # Admins see all tickets in Browse
+        query_browse_all_admin = f"""
+            SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+                c.name as category_name, u.full_name as created_by_name,
+                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
             FROM tickets t
             LEFT JOIN categories c ON t.category_id = c.id
             LEFT JOIN users u ON t.created_by = u.id
             LEFT JOIN users a ON t.assigned_to = a.id
-            LEFT JOIN ticket_watchers tw ON t.id = tw.ticket_id
-            WHERE ((u.department_id = ? OR a.department_id = ?) AND t.is_private = 0)
-                   OR t.created_by = ? OR t.assigned_to = ? OR tw.user_id = ?
-            AND {status_condition}
+            WHERE {status_condition}
             ORDER BY {order_by}
-            """
-            cursor.execute(query_browse_dept, (user_department_id, user_department_id, userid, userid, userid))
-            tickets_browse_department = cursor.fetchall()
-    else:
-        # Admins see all tickets in Browse
-        query_browse_all_admin = f"""
-        SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-               c.name as category_name, u.full_name as created_by_name,
-               CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
-        FROM tickets t
-        LEFT JOIN categories c ON t.category_id = c.id
-        LEFT JOIN users u ON t.created_by = u.id
-        LEFT JOIN users a ON t.assigned_to = a.id
-        WHERE {status_condition}
-        ORDER BY {order_by}
         """
         cursor.execute(query_browse_all_admin)
         tickets_browse_all_public = cursor.fetchall()
         tickets_browse_department = []
-    
-    # Assigned to me
-    query_assigned = f"""
-    SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-           c.name as category_name, u.full_name as created_by_name,
-           CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
-    FROM tickets t
-    LEFT JOIN categories c ON t.category_id = c.id
-    LEFT JOIN users u ON t.created_by = u.id
-    LEFT JOIN users a ON t.assigned_to = a.id
-    WHERE t.assigned_to = ? AND {status_condition}
-    ORDER BY {order_by}
-    """
-    cursor.execute(query_assigned, (userid,))
-    tickets_assigned_to_me = cursor.fetchall()
-    
-    # My created
-    query_created = f"""
-    SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-           c.name as category_name, u.full_name as created_by_name,
-           CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
-    FROM tickets t
-    LEFT JOIN categories c ON t.category_id = c.id
-    LEFT JOIN users u ON t.created_by = u.id
-    LEFT JOIN users a ON t.assigned_to = a.id
-    WHERE t.created_by = ? AND {status_condition}
-    ORDER BY {order_by}
-    """
-    cursor.execute(query_created, (userid,))
-    tickets_my_created = cursor.fetchall()
-    
-    # Watched
-    query_watched = f"""
-    SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-           c.name as category_name, u.full_name as created_by_name,
-           CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
-    FROM tickets t
-    JOIN ticket_watchers tw ON t.id = tw.ticket_id
-    LEFT JOIN categories c ON t.category_id = c.id
-    LEFT JOIN users u ON t.created_by = u.id
-    LEFT JOIN users a ON t.assigned_to = a.id
-    WHERE tw.user_id = ? AND {status_condition}
-    ORDER BY {order_by}
-    """
-    cursor.execute(query_watched, (userid,))
-    tickets_watched = cursor.fetchall()
-    
-    if role == 'admin':
+        
         # Admin: All tickets assigned to IT or any admin
         query_all_for_admin = f"""
-        SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-               c.name as category_name, u.full_name as created_by_name,
-               CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name,
-               CASE WHEN t.created_by = ? THEN 'own' ELSE 'team' END as ticket_type
-        FROM tickets t
-        LEFT JOIN categories c ON t.category_id = c.id
-        LEFT JOIN users u ON t.created_by = u.id
-        LEFT JOIN users a ON t.assigned_to = a.id
-        WHERE (t.assigned_to = 'IT' OR t.assigned_to IN ({placeholders_admins}))
-        AND {status_condition}
-        ORDER BY {order_by}
+            SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+                            c.name as category_name, u.full_name as created_by_name,
+                            CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name,
+                            CASE WHEN t.created_by = ? THEN 'own' ELSE 'team' END as ticket_type
+            FROM tickets t
+            LEFT JOIN categories c ON t.category_id = c.id
+            LEFT JOIN users u ON t.created_by = u.id
+            LEFT JOIN users a ON t.assigned_to = a.id
+            WHERE (t.assigned_to = 'IT' OR t.assigned_to IN ({placeholders_admins}))
+            AND {status_condition}
+            ORDER BY {order_by}
         """
-        params_all_for_admin = [userid] + it_admin_ids
+        params_all_for_admin = [user_id] + it_admin_ids
         cursor.execute(query_all_for_admin, params_all_for_admin)
         tickets_all_for_admin = cursor.fetchall()
         
+        # ===== ADMIN: Assigned to ME specifically (INCLUDES IT tickets) =====
+        # ===== ADMIN: Assigned to ME specifically (NO IT tickets) =====
+        query_assigned_to_me = f"""
+            SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+                c.name as category_name, u.full_name as created_by_name,
+                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+            FROM tickets t
+            LEFT JOIN categories c ON t.category_id = c.id
+            LEFT JOIN users u ON t.created_by = u.id
+            LEFT JOIN users a ON t.assigned_to = a.id
+            WHERE t.assigned_to = ? AND {status_condition}
+            ORDER BY {order_by}
+        """
+        cursor.execute(query_assigned_to_me, (user_id,))
+        tickets_assigned_to_me = cursor.fetchall()
+        
         # Admin: My created (admins)
-        placeholders = ','.join(['?'] * len(it_admin_ids)) if it_admin_ids else 'NULL'
+        placeholders = ','.join('?' for _ in it_admin_ids) if it_admin_ids else 'NULL'
         query_my_created = f"""
-        SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-               c.name as category_name, u.full_name as created_by_name,
-               CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
-        FROM tickets t
-        LEFT JOIN categories c ON t.category_id = c.id
-        LEFT JOIN users u ON t.created_by = u.id
-        LEFT JOIN users a ON t.assigned_to = a.id
-        WHERE t.created_by IN ({placeholders}) AND {status_condition}
-        ORDER BY {order_by}
+            SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+                c.name as category_name, u.full_name as created_by_name,
+                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+            FROM tickets t
+            LEFT JOIN categories c ON t.category_id = c.id
+            LEFT JOIN users u ON t.created_by = u.id
+            LEFT JOIN users a ON t.assigned_to = a.id
+            WHERE t.created_by IN ({placeholders}) AND {status_condition}
+            ORDER BY {order_by}
         """
         if it_admin_ids:
             cursor.execute(query_my_created, it_admin_ids)
@@ -427,18 +652,18 @@ def dashboard():
         
         # Watched by admins (distinct)
         query_watched_admin = f"""
-        SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-               c.name as category_name, u.full_name as created_by_name,
-               CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name,
-               CASE WHEN t.created_by = ? THEN 'own' ELSE 'team' END as ticket_type
-        FROM tickets t
-        JOIN ticket_watchers tw ON t.id = tw.ticket_id
-        LEFT JOIN categories c ON t.category_id = c.id
-        LEFT JOIN users u ON t.created_by = u.id
-        LEFT JOIN users a ON t.assigned_to = a.id
-        WHERE tw.user_id IN ({placeholders_admins})
+            SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+                            c.name as category_name, u.full_name as created_by_name,
+                            CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name,
+                            CASE WHEN t.created_by = ? THEN 'own' ELSE 'team' END as ticket_type
+            FROM tickets t
+            JOIN ticket_watchers tw ON t.id = tw.ticket_id
+            LEFT JOIN categories c ON t.category_id = c.id
+            LEFT JOIN users u ON t.created_by = u.id
+            LEFT JOIN users a ON t.assigned_to = a.id
+            WHERE tw.user_id IN ({placeholders_admins})
         """
-        params_watched = [userid] + it_admin_ids
+        params_watched = [user_id] + it_admin_ids
         
         if current_filter == 'active':
             query_watched_admin += " AND t.status != 'closed'"
@@ -448,49 +673,65 @@ def dashboard():
         query_watched_admin += f" ORDER BY {order_by}"
         cursor.execute(query_watched_admin, params_watched)
         tickets_watched_admin = cursor.fetchall()
-        
-        # *** KLJUČNI DEO - Tickets by each admin ***
-        for admin_user in it_admins:
-            admin_id = admin_user[0]
-            
-            # Active or all tickets
+
+        # ===== OPTIMIZED: ONE QUERY FOR ALL ADMINS (N+1 FIX) =====
+        if it_admin_ids:
+            # Active/all tickets grouped by admin
             if current_filter != 'closed':
-                query_admin_tickets = f"""
-                SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+                placeholders_batch = ','.join('?' for _ in it_admin_ids)
+                query_all_admin_tickets = f"""
+                SELECT t.assigned_to, t.id, t.title, t.priority, t.status, 
+                       t.created_at, t.updated_at, t.created_by, t.due_date,
                        c.name as category_name, u.full_name as created_by_name,
                        CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
                 FROM tickets t
                 LEFT JOIN categories c ON t.category_id = c.id
                 LEFT JOIN users u ON t.created_by = u.id
                 LEFT JOIN users a ON t.assigned_to = a.id
-                WHERE t.assigned_to = ? AND {status_condition}
-                ORDER BY {order_by}
+                WHERE t.assigned_to IN ({placeholders_batch}) AND {status_condition}
+                ORDER BY t.assigned_to, {order_by}
                 """
-                cursor.execute(query_admin_tickets, (admin_id,))
-                tickets_by_admin[admin_id] = cursor.fetchall()
+                cursor.execute(query_all_admin_tickets, it_admin_ids)
+                all_admin_tickets = cursor.fetchall()
+                
+                # Group by admin_id
+                for admin_id in it_admin_ids:
+                    tickets_by_admin[admin_id] = [
+                        ticket for ticket in all_admin_tickets 
+                        if ticket[0] == admin_id
+                    ]
             
-            # Closed tickets
+            # Closed tickets grouped by admin
             if current_filter == 'closed':
-                query_admin_closed = f"""
-                SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+                placeholders_batch = ','.join('?' for _ in it_admin_ids)
+                query_closed_admin = f"""
+                SELECT t.assigned_to, t.id, t.title, t.priority, t.status, 
+                       t.created_at, t.updated_at, t.created_by, t.due_date,
                        c.name as category_name, u.full_name as created_by_name,
                        CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
                 FROM tickets t
                 LEFT JOIN categories c ON t.category_id = c.id
                 LEFT JOIN users u ON t.created_by = u.id
                 LEFT JOIN users a ON t.assigned_to = a.id
-                WHERE t.assigned_to = ? AND t.status = 'closed'
-                ORDER BY {order_by}
+                WHERE t.assigned_to IN ({placeholders_batch}) AND t.status = 'closed'
+                ORDER BY t.assigned_to, {order_by}
                 """
-                cursor.execute(query_admin_closed, (admin_id,))
-                tickets_closed_by_admin[admin_id] = cursor.fetchall()
-    
+                cursor.execute(query_closed_admin, it_admin_ids)
+                all_closed = cursor.fetchall()
+                
+                for admin_id in it_admin_ids:
+                    tickets_closed_by_admin[admin_id] = [
+                        ticket for ticket in all_closed 
+                        if ticket[0] == admin_id
+                    ]
+        # ===== END OPTIMIZED N+1 FIX =====
+
     # Get all users for Browse filter
     cursor.execute("SELECT id, full_name FROM users ORDER BY full_name")
     all_users_for_filter = cursor.fetchall()
     
     conn.close()
-    
+
     return render_template(
         'dashboard.html',
         tickets=tickets,
@@ -527,15 +768,19 @@ def create_ticket():
             category_id = request.form.get('category_id')
             due_date = request.form.get('due_date')
 
-            # Parse assigned_to properly: int user_id, "IT" string, or None
             assigned_to_raw = request.form.get('assigned_to')
             assigned_to_db = None
+
             if assigned_to_raw and assigned_to_raw.strip() != '':
-                try:
-                    assigned_to_db = int(assigned_to_raw)
-                except ValueError:
-                    # Allow special label "IT" to pass through as string (if used in your UI)
-                    assigned_to_db = assigned_to_raw.strip()
+                if assigned_to_raw.strip() == 'IT':
+                    assigned_to_db = None  # Store NULL for 'IT'
+                else:
+                    try:
+                        assigned_to_db = int(assigned_to_raw)  # User ID
+                    except ValueError:
+                        flash('Invalid user selected for assignment.', 'error')
+                        conn.close()
+                        return redirect(url_for('create_ticket'))
 
             watchers_input = request.form.get('watchers', '').strip()
 
@@ -575,35 +820,37 @@ def create_ticket():
                         flash(f'Watcher user "{watcher_name}" does not exist.', 'error')
                 conn.commit()
 
-            # Attachments
+            # ===== FILE UPLOAD WITH SECURITY VALIDATION =====
             if 'attachments' in request.files:
                 files = request.files.getlist('attachments')
                 _ensure_upload_dir()
                 for file in files:
                     if file and file.filename:
+                        # Validate file type
+                        if not allowed_file(file.filename, file.content_type):
+                            flash(f'File type not allowed: {file.filename} ({file.content_type})', 'error')
+                            continue
+                        
                         import uuid
                         _, ext = os.path.splitext(file.filename)
                         unique_filename = f"{ticket_id}_{uuid.uuid4().hex}{ext}"
                         upload_path = get_upload_path()
                         file_path = os.path.join(upload_path, unique_filename)
                         file.save(file_path)
-                        # Store relative path in database
                         relative_path = os.path.join(upload_path.replace('static/', ''), unique_filename)
                         cursor.execute("""
                         INSERT INTO attachments (ticket_id, filename, original_filename, file_path, uploaded_by)
                         VALUES (?, ?, ?, ?, ?)
                         """, (ticket_id, unique_filename, file.filename, relative_path, user_id))
                 conn.commit()
+            # ===== END FILE UPLOAD =====
 
             log_activity(user_id, 'TICKET_CREATED', f'Ticket ID: {ticket_id}, Title: {title}')
-
-            # Notify: only assignee or IT mailbox, per notifications.py routing
             notify_on_ticket_created(ticket_id, actor_user_id=user_id)
 
             flash('Ticket created successfully.', 'success')
             return redirect(url_for('dashboard'))
 
-        # GET
         return render_template(
             'create_ticket.html',
             categories=get_categories(),
@@ -624,33 +871,32 @@ def create_ticket():
             form=request.form
         )
 
-
 def get_categories():
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM categories ORDER BY name")
     categories = cursor.fetchall()
     conn.close()
     return categories
 
-
 def get_users():
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id, full_name FROM users WHERE role != 'admin' ORDER BY full_name")
     users = cursor.fetchall()
     conn.close()
     return users
 
-
 def get_it_admins():
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id, full_name FROM users WHERE role = 'admin' ORDER BY full_name")
     it_admins = cursor.fetchall()
     conn.close()
     return it_admins
-
 
 @app.route('/ticket/<int:ticket_id>')
 @login_required
@@ -676,29 +922,44 @@ def ticket_detail(ticket_id):
         conn.close()
         return redirect(url_for('dashboard'))
 
-    # Check if user has permission to view this ticket
+    # Check permissions
     if role != 'admin':
-        # If ticket is PUBLIC, everyone can view it
-        if ticket[8] == 0:  # is_private = 0 means PUBLIC
-            pass  # Allow access
+        if ticket[8] == 0:
+            pass
         else:
-            # If ticket is PRIVATE, only creator, assigned, or watchers can view
             if ticket[6] != user_id and ticket[7] != user_id:
-                # Check if user is a watcher
                 cursor.execute("SELECT 1 FROM ticket_watchers WHERE ticket_id = ? AND user_id = ?", (ticket_id, user_id))
                 if not cursor.fetchone():
                     flash('You do not have permission to view this ticket.', 'danger')
                     return redirect(url_for('dashboard'))
 
-    # Watchers (with IDs)
+    # Get watchers
     cursor.execute("""
-    SELECT u.id, u.full_name FROM users u
-    JOIN ticket_watchers tw ON u.id = tw.user_id
-    WHERE tw.ticket_id = ?
+        SELECT tw.user_id, u.full_name
+        FROM ticket_watchers tw
+        JOIN users u ON tw.user_id = u.id
+        WHERE tw.ticket_id = ?
     """, (ticket_id,))
-    watchers = cursor.fetchall()  # List of tuples: [(id, full_name), ...]
+    watchers = list(cursor.fetchall())
 
-    # Comments
+    # === ADD IT ADMINS AS IMPLICIT WATCHERS ===
+    # If ticket is assigned to 'IT', show all IT admins as watchers
+    if ticket[11] == 'IT' or ticket[11] is None:  # ticket[11] = assigned_to
+        cursor.execute("""
+            SELECT id, full_name
+            FROM users
+            WHERE role = 'admin'
+            ORDER BY full_name
+        """)
+        it_admins_list = cursor.fetchall()
+        
+        # Add IT admins to watchers list (if not already there)
+        existing_watcher_ids = [w[0] for w in watchers]
+        for admin in it_admins_list:
+            if admin[0] not in existing_watcher_ids:
+                watchers.append((admin[0], f"{admin[1]} (IT Admin)"))
+
+
     cursor.execute("""
         SELECT c.id, c.comment, c.created_at, u.full_name
         FROM comments c
@@ -708,7 +969,6 @@ def ticket_detail(ticket_id):
     """, (ticket_id,))
     comments = cursor.fetchall()
 
-    # Attachments
     cursor.execute("""
         SELECT a.id, a.filename, a.original_filename, a.created_at, a.uploaded_by, u.full_name
         FROM attachments a
@@ -718,9 +978,43 @@ def ticket_detail(ticket_id):
     """, (ticket_id,))
     attachments = cursor.fetchall()
 
-    # Users (non-admins)
+    # Get all users for watchers autocomplete (INCLUDING admins)
+    cursor.execute("SELECT id, full_name FROM users ORDER BY full_name")
+    all_users = cursor.fetchall()
+
+    # Get ONLY non-admin users for reassignment dropdown (EXCLUDING admins)
     cursor.execute("SELECT id, full_name FROM users WHERE role != 'admin' ORDER BY full_name")
     users = cursor.fetchall()
+
+
+    # Get ONLY non-admin users for reassignment dropdown (EXCLUDING admins)
+    cursor.execute("""
+        SELECT id, full_name FROM users 
+        WHERE role != 'admin' 
+        ORDER BY full_name
+    """)
+    users = cursor.fetchall()
+
+
+    
+    # Get activity log
+    cursor.execute("""
+        SELECT 
+            tal.id,
+            tal.ticket_id,
+            tal.action_type,
+            datetime(tal.created_at, 'localtime') as created_at_local,
+            u.full_name as user_name,
+            tal.old_value,
+            tal.new_value,
+            tal.details
+        FROM ticket_activity_log tal
+        JOIN users u ON tal.user_id = u.id
+        WHERE tal.ticket_id = ?
+        ORDER BY tal.created_at DESC
+        LIMIT 50
+    """, (ticket_id,))
+    activity_log = cursor.fetchall()
 
     can_start_work = False
     can_confirm = False
@@ -729,6 +1023,13 @@ def ticket_detail(ticket_id):
     if user_id == ticket[6] and ticket[5] == 'awaiting_confirmation':
         can_confirm = True
 
+    # Proveri da li je trenutni korisnik mute-ovao ovaj tiket
+    cursor.execute("""
+        SELECT 1 FROM ticket_muted_users
+        WHERE ticket_id=? AND user_id=?
+    """, (ticket_id, user_id))
+    is_muted = cursor.fetchone() is not None
+    
     conn.close()
 
     return render_template(
@@ -740,9 +1041,10 @@ def ticket_detail(ticket_id):
         can_start_work=can_start_work,
         can_confirm=can_confirm,
         users=users,
-        all_users=users  # Add this line
+        all_users=all_users,
+        activity_log=activity_log,
+        is_muted=is_muted
     )
-
 
 @app.route('/update_ticket_status', methods=['POST'])
 @login_required
@@ -751,7 +1053,8 @@ def update_ticket_status():
     new_status = request.form['status']
     actor_id = session.get('user_id')
 
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT status FROM tickets WHERE id=?", (ticket_id,))
     row = cursor.fetchone()
@@ -760,18 +1063,17 @@ def update_ticket_status():
 
     ticket_model.update_ticket_status(ticket_id, new_status)
 
-    # Notify after status change
     if old_status is not None:
         notify_on_status_change(ticket_id, old_status, new_status, actor_user_id=actor_id)
 
     flash('Ticket status updated!', 'success')
     return redirect(url_for('dashboard'))
 
-
 @app.route('/admin')
 @admin_required
 def admin_panel():
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
     cursor.execute("SELECT * FROM categories ORDER BY name")
@@ -789,7 +1091,6 @@ def admin_panel():
     """)
     users = cursor.fetchall()
 
-    # Count tickets
     cursor.execute("SELECT COUNT(*) FROM tickets")
     ticket_count = cursor.fetchone()[0]
 
@@ -799,8 +1100,7 @@ def admin_panel():
                          categories=categories, 
                          departments=departments, 
                          users=users,
-                         tickets=[None] * ticket_count)  # Dummy list for count
-
+                         tickets=[None] * ticket_count)
 
 @app.route('/add_category', methods=['POST'])
 @admin_required
@@ -808,7 +1108,8 @@ def add_category():
     name = request.form['name']
     description = request.form.get('description', '')
 
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
     try:
@@ -822,11 +1123,11 @@ def add_category():
 
     return redirect(url_for('admin_panel'))
 
-
 @app.route('/delete_user/<int:user_id>', methods=['POST'])
 @admin_required
 def delete_user(user_id):
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
     try:
@@ -838,11 +1139,11 @@ def delete_user(user_id):
     finally:
         conn.close()
 
-
 @app.route('/delete_department/<int:dept_id>', methods=['POST'])
 @admin_required
 def delete_department(dept_id):
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
     try:
@@ -855,11 +1156,11 @@ def delete_department(dept_id):
     finally:
         conn.close()
 
-
 @app.route('/delete_category/<int:cat_id>', methods=['POST'])
 @admin_required
 def delete_category(cat_id):
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
     try:
@@ -871,14 +1172,14 @@ def delete_category(cat_id):
     finally:
         conn.close()
 
-
 @app.route('/add_department', methods=['POST'])
 @admin_required
 def add_department():
     name = request.form['name']
     description = request.form.get('description', '')
 
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
     try:
@@ -892,13 +1193,13 @@ def add_department():
 
     return redirect(url_for('admin_panel'))
 
-
 @app.route('/toggle_department_head', methods=['POST'])
 @admin_required
 def toggle_department_head():
     user_id = request.form['user_id']
 
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
     cursor.execute("SELECT is_department_head FROM users WHERE id = ?", (user_id,))
@@ -918,10 +1219,10 @@ def reopen_ticket(ticket_id):
     user_id = session.get('user_id')
     role = session.get('role')
     
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
     
-    # Get ticket info
     cursor.execute("""
         SELECT id, status, created_by, assigned_to
         FROM tickets
@@ -936,18 +1237,15 @@ def reopen_ticket(ticket_id):
     
     ticket_id_db, status, created_by, assigned_to = ticket
     
-    # Check if ticket is closed
     if status != 'closed':
         conn.close()
         flash('Only closed tickets can be reopened.', 'error')
         return redirect(url_for('ticket_detail', ticket_id=ticket_id))
     
-    # Permission check: creator, assignee, watcher, or admin
     can_reopen = False
     if role == 'admin' or user_id == created_by or user_id == assigned_to:
         can_reopen = True
     else:
-        # Check if user is watcher
         cursor.execute("SELECT 1 FROM ticket_watchers WHERE ticket_id = ? AND user_id = ?", (ticket_id, user_id))
         if cursor.fetchone():
             can_reopen = True
@@ -957,14 +1255,12 @@ def reopen_ticket(ticket_id):
         flash('You do not have permission to reopen this ticket.', 'error')
         return redirect(url_for('ticket_detail', ticket_id=ticket_id))
     
-    # Reopen ticket (set status to 'in_progress')
     cursor.execute("""
         UPDATE tickets 
         SET status = 'in_progress', updated_at = datetime('now', 'localtime')
         WHERE id = ?
     """, (ticket_id,))
     
-    # Add comment about reopening
     cursor.execute("""
         INSERT INTO comments (ticket_id, user_id, comment)
         VALUES (?, ?, ?)
@@ -973,7 +1269,6 @@ def reopen_ticket(ticket_id):
     conn.commit()
     conn.close()
     
-    # Notify about reopening
     notify_on_status_change(ticket_id, 'closed', 'in_progress', actor_user_id=user_id)
     
     log_activity(user_id, 'TICKET_REOPENED', f'Ticket ID: {ticket_id}')
@@ -986,10 +1281,10 @@ def delete_attachment(attachment_id):
     user_id = session.get('user_id')
     role = session.get('role')
     
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
     
-    # Get attachment info
     cursor.execute("""
         SELECT a.id, a.ticket_id, a.filename, a.file_path, a.uploaded_by, t.created_by
         FROM attachments a
@@ -1005,20 +1300,16 @@ def delete_attachment(attachment_id):
     
     attachment_id_db, ticket_id, filename, file_path, uploaded_by, ticket_creator = attachment
     
-    # Permission check: only uploader, ticket creator, or admin can delete
     if role != 'admin' and user_id != uploaded_by and user_id != ticket_creator:
         conn.close()
         flash('You do not have permission to delete this attachment.', 'error')
         return redirect(url_for('ticket_detail', ticket_id=ticket_id))
     
-    # Delete from database
     cursor.execute("DELETE FROM attachments WHERE id = ?", (attachment_id,))
     conn.commit()
     conn.close()
     
-    # Delete file from filesystem
     try:
-        # Convert to absolute path if needed
         if not os.path.isabs(file_path):
             file_path = os.path.join(os.path.abspath(app.config['UPLOAD_FOLDER']), os.path.basename(file_path))
         
@@ -1034,8 +1325,8 @@ def delete_attachment(attachment_id):
 @app.route('/get_all_users')
 @login_required
 def get_all_users():
-    """Return all users as JSON for autocomplete"""
-    conn = get_db_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT full_name FROM users ORDER BY full_name')
     users = cursor.fetchall()
@@ -1047,85 +1338,132 @@ def get_all_users():
 @app.route('/add_comment', methods=['POST'])
 @login_required
 def add_comment():
-    ticket_id = request.form['ticket_id']
-    comment = request.form['comment']
-    user_id = session.get('user_id')
-
-    conn = Database().get_connection()
+    ticket_id = request.form.get('ticket_id')
+    comment = request.form.get('comment')
+    
+    if not ticket_id or not comment:
+        flash('Ticket ID and comment are required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
-
+    
+    user_id = session.get('user_id')
+    
+    # Add comment
     cursor.execute("""
         INSERT INTO comments (ticket_id, user_id, comment)
         VALUES (?, ?, ?)
     """, (ticket_id, user_id, comment))
-
+    
+    # ===== HANDLE PASTED IMAGES =====
+    pasted_files = []
+    for key in request.files:
+        if key.startswith('pasted_file_'):
+            pasted_files.append(request.files[key])
+    
+    if pasted_files:
+        import os
+        from werkzeug.utils import secure_filename
+        
+        UPLOAD_FOLDER = 'uploads'
+        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+        
+        for file in pasted_files:
+            if file and file.filename:
+                filename = secure_filename(file.filename)
+                filepath = os.path.join(UPLOAD_FOLDER, f"{ticket_id}_{filename}")
+                file.save(filepath)
+                
+                # Add as attachment
+                cursor.execute("""
+                    INSERT INTO attachments (ticket_id, filename, filepath, uploaded_by)
+                    VALUES (?, ?, ?, ?)
+                """, (ticket_id, filename, filepath, user_id))
+    
+    # Update ticket timestamp
     cursor.execute("""
-        UPDATE tickets
-        SET updated_at = datetime('now', 'localtime')
+        UPDATE tickets SET updated_at = datetime('now', 'localtime')
         WHERE id = ?
     """, (ticket_id,))
-
-    log_activity(user_id, 'COMMENT_ADDED', f'Ticket ID: {ticket_id}')
+    
     conn.commit()
     conn.close()
-
-    # Notify
-    notify_on_comment(ticket_id, actor_user_id=user_id, comment_preview=comment)
-
-    flash('Comment added successfully!', 'success')
+    
+    from notifications import notify_on_comment
+    notify_on_comment(ticket_id, user_id, comment)
+    
+    flash('Comment added successfully.', 'success')
     return redirect(url_for('ticket_detail', ticket_id=ticket_id))
-
 
 @app.route('/upload_attachment', methods=['POST'])
 @login_required
 def upload_attachment():
-    ticket_id = request.form['ticket_id']
+    ticket_id = request.form.get('ticket_id')
+    
+    if not ticket_id:
+        flash('Ticket ID is required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    # Handle single or multiple files
+    files = request.files.getlist('file')
+    
+    if not files or not files[0].filename:
+        flash('No file selected.', 'error')
+        return redirect(url_for('ticket_detail', ticket_id=ticket_id))
+    
+    import os
+    from werkzeug.utils import secure_filename
+    
+    UPLOAD_FOLDER = 'uploads'
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    
+    db = Database()
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    
     user_id = session.get('user_id')
-
-    if 'file' not in request.files:
-        flash('No file selected!', 'error')
-        return redirect(url_for('ticket_detail', ticket_id=ticket_id))
-
-    file = request.files['file']
-    if file.filename == '':
-        flash('No file selected!', 'error')
-        return redirect(url_for('ticket_detail', ticket_id=ticket_id))
-
-    try:
-        _ensure_upload_dir()
-        import uuid
-        _, ext = os.path.splitext(file.filename)
-        unique_filename = f"{ticket_id}_{uuid.uuid4().hex}{ext}"
-        upload_path = get_upload_path()
-        file_path = os.path.join(upload_path, unique_filename)
-        file.save(file_path)
-        # Store relative path in database
-        relative_path = os.path.join(upload_path.replace('static/', ''), unique_filename)
-
-        conn = Database().get_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-        INSERT INTO attachments (ticket_id, filename, original_filename, file_path, uploaded_by)
-        VALUES (?, ?, ?, ?, ?)
-        """, (ticket_id, unique_filename, file.filename, relative_path, user_id))
-        conn.commit()
-        conn.close()
-
-        # Notify
-        notify_on_attachment(ticket_id, actor_user_id=user_id, filename=file.filename)
-
-        flash('File uploaded successfully!', 'success')
-    except Exception as e:
-        flash(f'Error uploading file: {str(e)}', 'error')
-
+    uploaded_count = 0
+    
+    for file in files:
+        if file and file.filename:
+            original_filename = file.filename
+            # Create unique filename
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            safe_name = secure_filename(original_filename)
+            filename = f"{ticket_id}_{timestamp}_{safe_name}"
+            filepath = os.path.join(UPLOAD_FOLDER, filename)
+            
+            # Save file
+            file.save(filepath)
+            
+            # Save to database (ISPRAVLJENO: file_path + original_filename)
+            cursor.execute("""
+                INSERT INTO attachments (ticket_id, filename, original_filename, file_path, uploaded_by)
+                VALUES (?, ?, ?, ?, ?)
+            """, (ticket_id, filename, original_filename, filepath, user_id))
+            
+            uploaded_count += 1
+    
+    # Update ticket timestamp
+    cursor.execute("""
+        UPDATE tickets SET updated_at = datetime('now', 'localtime')
+        WHERE id = ?
+    """, (ticket_id,))
+    
+    conn.commit()
+    conn.close()
+    
+    flash(f'{uploaded_count} file(s) uploaded successfully.', 'success')
     return redirect(url_for('ticket_detail', ticket_id=ticket_id))
-
 
 @app.route('/import_users', methods=['GET', 'POST'])
 @admin_required
 def import_users():
     if request.method == 'GET':
-        conn = Database().get_connection()
+        db = Database()
+        conn = db.get_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM departments ORDER BY name")
         departments = cursor.fetchall()
@@ -1144,7 +1482,8 @@ def import_users():
     try:
         df = pd.read_excel(file)
 
-        conn = Database().get_connection()
+        db = Database()
+        conn = db.get_connection()
         cursor = conn.cursor()
 
         imported_count = 0
@@ -1191,7 +1530,6 @@ def import_users():
 
     return redirect(url_for('admin_panel'))
 
-
 @app.route('/add_user_manual', methods=['POST'])
 @admin_required
 def add_user_manual():
@@ -1203,11 +1541,11 @@ def add_user_manual():
     role = request.form.get('role', 'user')
     is_department_head = 1 if request.form.get('is_department_head') else 0
 
-    # Convert empty string to None for department_id
     if department_id == '':
         department_id = None
 
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
     try:
@@ -1236,7 +1574,8 @@ def add_user_manual():
 @app.route('/debug_users')
 @admin_required
 def debug_users():
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
     
     cursor.execute("""
@@ -1255,45 +1594,14 @@ def debug_users():
     
     return output
 
-@app.route('/create_it_admins')
-@admin_required
-def create_it_admins():
-    try:
-        conn = Database().get_connection()
-        cursor = conn.cursor()
-
-        it_admins = [
-            ('it.admin1', 'change-me', 'IT Admin 1', 'admin1@example.com'),
-            ('milos.radojkovic', 'change-me', 'Miloš R.', 'milos@company.com'),
-            ('it.admin2', 'change-me', 'IT Admin 2', 'admin2@example.com')
-        ]
-
-        for username, password, full_name, email in it_admins:
-            cursor.execute("SELECT id FROM users WHERE username = ?", (username,))
-            if not cursor.fetchone():
-                hashed = hashlib.sha256(password.encode()).hexdigest()
-                cursor.execute("""
-                    INSERT INTO users (username, password, full_name, email, role, department_name, department_id, is_department_head)
-                    VALUES (?, ?, ?, ?, ?, 'admin', NULL, 0)
-                """, (username, hashed, full_name, email))
-
-        conn.commit()
-        conn.close()
-
-        flash('IT Admins created successfully! (password: change-me)', 'success')
-    except Exception as e:
-        flash(f'Error creating IT admins: {str(e)}', 'error')
-
-    return redirect(url_for('admin_panel'))
-
-
 @app.route('/assign_department', methods=['POST'])
 @admin_required
 def assign_department():
     user_id = request.form['user_id']
     department_id = request.form.get('department_id') or None
 
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
     cursor.execute("UPDATE users SET department_id = ? WHERE id = ?", (department_id, user_id))
@@ -1302,7 +1610,6 @@ def assign_department():
 
     flash('Department assignment updated!', 'success')
     return redirect(url_for('admin_panel'))
-
 
 @app.route('/edit_ticket/<int:ticket_id>', methods=['GET', 'POST'])
 @login_required
@@ -1375,7 +1682,6 @@ def edit_ticket(ticket_id):
                             flash(f'Watcher user "{watcher_name}" does not exist.', 'error')
                 conn.commit()
 
-                # Notify watchers newly added (only those)
                 if added_watchers_ids:
                     notify_on_watchers_added(ticket_id, actor_user_id=user_id, watcher_user_ids=added_watchers_ids)
 
@@ -1412,7 +1718,6 @@ def edit_ticket(ticket_id):
                 conn.close()
                 return redirect(url_for('ticket_detail', ticket_id=ticket_id))
 
-        # GET
         cursor.execute("""
             SELECT u.full_name FROM users u
             JOIN ticket_watchers tw ON u.id = tw.user_id
@@ -1444,11 +1749,11 @@ def edit_ticket(ticket_id):
             form=request.form
         )
 
-
 @app.route('/manage_department_users/<int:dept_id>')
 @admin_required
 def manage_department_users(dept_id):
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
     cursor.execute("SELECT * FROM departments WHERE id = ?", (dept_id,))
@@ -1476,7 +1781,6 @@ def manage_department_users(dept_id):
         available_users=available_users
     )
 
-
 @app.route('/add_user_to_department', methods=['POST'])
 @admin_required
 def add_user_to_department():
@@ -1484,7 +1788,8 @@ def add_user_to_department():
     dept_id = request.form['dept_id']
     is_head = 1 if request.form.get('is_head') else 0
 
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
     try:
@@ -1501,14 +1806,14 @@ def add_user_to_department():
 
     return redirect(url_for('manage_department_users', dept_id=dept_id))
 
-
 @app.route('/remove_user_from_department', methods=['POST'])
 @admin_required
 def remove_user_from_department():
     user_id = request.form['user_id']
     dept_id = request.form['dept_id']
 
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
     try:
@@ -1525,11 +1830,11 @@ def remove_user_from_department():
 
     return redirect(url_for('manage_department_users', dept_id=dept_id))
 
-
 @app.route('/mark_resolved/<int:ticket_id>', methods=['POST'])
 @login_required
 def mark_resolved(ticket_id):
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
     cursor.execute("SELECT * FROM tickets WHERE id = ? AND created_by = ?", (ticket_id, session.get('user_id')))
@@ -1540,7 +1845,6 @@ def mark_resolved(ticket_id):
         conn.commit()
         conn.close()
 
-        # Notify
         notify_on_closed(ticket_id, actor_user_id=session.get('user_id'))
 
         flash('Ticket marked as resolved!', 'success')
@@ -1549,7 +1853,6 @@ def mark_resolved(ticket_id):
         flash('Access denied!', 'error')
 
     return redirect(url_for('dashboard'))
-
 
 @app.route('/assign_ticket', methods=['POST'])
 @login_required
@@ -1563,8 +1866,8 @@ def assign_ticket():
         flash('Invalid ticket.', 'error')
         return redirect(url_for('dashboard'))
 
-    # Check if user is admin or watcher
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
     
     cursor.execute("""
@@ -1606,7 +1909,6 @@ def assign_ticket():
     conn.commit()
     conn.close()
 
-    # Notify
     notify_on_assigned(ticket_id, actor_user_id=current_user_id, assigned_to_id=assigned_to_db)
 
     flash('Ticket assignment updated.', 'success')
@@ -1615,35 +1917,34 @@ def assign_ticket():
 @app.route('/download_attachment/<int:attachment_id>')
 @login_required
 def download_attachment(attachment_id):
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, ticket_id, filename, original_filename, file_path, uploaded_by FROM attachments WHERE id = ?", (attachment_id,))
+    
+    cursor.execute("""
+        SELECT filename, original_filename, file_path 
+        FROM attachments 
+        WHERE id = ?
+    """, (attachment_id,))
+    
     attachment = cursor.fetchone()
     conn.close()
-
+    
     if not attachment:
-        flash('File not found!', 'error')
+        flash('Attachment not found.', 'error')
         return redirect(url_for('dashboard'))
-
-    file_path = attachment[4]
-    original_name = attachment[3] or attachment[2]
-
-    # Convert relative path to absolute if needed
-    if not os.path.isabs(file_path):
-        file_path = os.path.join('static', file_path)
-
-    # Comments in English as requested.
-    if not os.path.isfile(file_path):
-        flash('The file is missing on the server.', 'error')
-        return redirect(url_for('dashboard'))
-
-    return send_file(file_path, as_attachment=True, download_name=original_name)
-
+    
+    filename = attachment[0]
+    original_filename = attachment[1]
+    file_path = attachment[2]
+    
+    return send_file(file_path, as_attachment=True, download_name=original_filename)
 
 @app.route('/edit_user/<int:user_id>')
 @admin_required
 def edit_user(user_id):
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -1660,7 +1961,6 @@ def edit_user(user_id):
     conn.close()
     return render_template('edit_user.html', user=user, departments=departments)
 
-
 @app.route('/update_user/<int:user_id>', methods=['POST'])
 @admin_required
 def update_user(user_id):
@@ -1673,7 +1973,8 @@ def update_user(user_id):
 
     password = request.form.get('password')
 
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
     try:
@@ -1700,11 +2001,11 @@ def update_user(user_id):
 
     return redirect(url_for('admin_panel'))
 
-
 @app.route('/edit_category/<int:cat_id>', methods=['GET', 'POST'])
 @admin_required
 def edit_category(cat_id):
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
     if request.method == 'POST':
@@ -1733,11 +2034,11 @@ def edit_category(cat_id):
 
     return render_template('edit_category.html', category=category)
 
-
 @app.route('/edit_department/<int:dept_id>', methods=['GET', 'POST'])
 @admin_required
 def edit_department(dept_id):
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
     if request.method == 'POST':
@@ -1766,7 +2067,6 @@ def edit_department(dept_id):
 
     return render_template('edit_department.html', department=department)
 
-
 @app.route('/api/users')
 @login_required
 def api_users():
@@ -1790,10 +2090,10 @@ def api_users():
     conn.close()
     return jsonify(users)
 
-
 @app.route('/reassign_ticket/<int:ticket_id>', methods=['POST'])
 @login_required
 def reassign_ticket(ticket_id):
+    """Reassign ticket - Allows: admin, creator, assigned user, or watcher"""
     user_id = session.get('user_id')
     role = session.get('role')
 
@@ -1802,10 +2102,12 @@ def reassign_ticket(ticket_id):
         flash('Please select a user to assign the ticket.', 'error')
         return redirect(url_for('ticket_detail', ticket_id=ticket_id))
 
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT assigned_to FROM tickets WHERE id = ?", (ticket_id,))
+    # Get ticket info
+    cursor.execute("SELECT assigned_to, created_by FROM tickets WHERE id = ?", (ticket_id,))
     row = cursor.fetchone()
     if not row:
         flash('Ticket not found.', 'error')
@@ -1813,42 +2115,162 @@ def reassign_ticket(ticket_id):
         return redirect(url_for('dashboard'))
 
     current_assigned_to = row[0]
+    created_by = row[1]
     
-    # Check if user is watcher
+    # Check if watcher
     cursor.execute("""
         SELECT COUNT(*) FROM ticket_watchers 
         WHERE ticket_id = ? AND user_id = ?
     """, (ticket_id, user_id))
     is_watcher = cursor.fetchone()[0] > 0
     
-    # Allow admin, current assignee, or watcher
-    if role != 'admin' and current_assigned_to != user_id and not is_watcher:
+    # Permission check
+    if not (role == 'admin' or 
+            user_id == created_by or 
+            current_assigned_to == user_id or 
+            is_watcher):
         flash('You do not have permission to reassign this ticket.', 'error')
         conn.close()
         return redirect(url_for('ticket_detail', ticket_id=ticket_id))
 
-    cursor.execute("""
-        UPDATE tickets SET assigned_to = ?, updated_at = datetime('now', 'localtime')
-        WHERE id = ?
-    """, (new_assigned_to, ticket_id))
+    # ===== ASSIGN - Store NULL for 'IT', integer for users =====
+    if new_assigned_to == 'IT':
+        # Set to NULL (displays as 'IT' in UI)
+        cursor.execute("""
+            UPDATE tickets 
+            SET assigned_to = NULL,
+                status = CASE WHEN status = 'new' THEN 'assigned' ELSE status END,
+                updated_at = datetime('now', 'localtime')
+            WHERE id = ?
+        """, (ticket_id,))
+        assigned_to_for_notification = 'IT'
+    else:
+        # Assign to specific user
+        try:
+            assigned_to_int = int(new_assigned_to)
+            cursor.execute("""
+                UPDATE tickets 
+                SET assigned_to = ?,
+                    status = CASE WHEN status = 'new' THEN 'assigned' ELSE status END,
+                    updated_at = datetime('now', 'localtime')
+                WHERE id = ?
+            """, (assigned_to_int, ticket_id))
+            assigned_to_for_notification = assigned_to_int
+        except ValueError:
+            flash('Invalid user selected.', 'error')
+            conn.close()
+            return redirect(url_for('ticket_detail', ticket_id=ticket_id))
 
+    # Add as watcher
     cursor.execute("""
         INSERT OR IGNORE INTO ticket_watchers (ticket_id, user_id)
         VALUES (?, ?)
     """, (ticket_id, user_id))
 
+    # === LOG ACTIVITY - GET ACTUAL NAMES ===
+    # Get old assigned name
+    if current_assigned_to == 'IT' or current_assigned_to is None:
+        old_assigned_name = "IT (Unassigned)"
+    else:
+        cursor.execute("SELECT full_name FROM users WHERE id = ?", (current_assigned_to,))
+        old_user = cursor.fetchone()
+        old_assigned_name = old_user[0] if old_user else f"User {current_assigned_to}"
+
+    # Get new assigned name
+    if new_assigned_to == 'IT':
+        new_assigned_name = "IT (Unassigned)"
+    else:
+        cursor.execute("SELECT full_name FROM users WHERE id = ?", (assigned_to_for_notification,))
+        new_user = cursor.fetchone()
+        new_assigned_name = new_user[0] if new_user else f"User {assigned_to_for_notification}"
+
     conn.commit()
     conn.close()
+    
+    log_ticket_activity(
+        ticket_id=ticket_id,
+        user_id=user_id,
+        action_type='reassigned',
+        old_value=old_assigned_name,
+        new_value=new_assigned_name
+    )
 
-    # Notify
+    # Notification
     try:
-        assigned_to_int = int(new_assigned_to)
-    except Exception:
-        assigned_to_int = new_assigned_to  # if any string (e.g., 'IT')
-    notify_on_reassigned(ticket_id, actor_user_id=user_id, new_assigned_to_id=assigned_to_int)
+        from notifications import notify_on_reassigned
+        notify_on_reassigned(ticket_id, actor_user_id=user_id, new_assigned_to_id=assigned_to_for_notification)
+    except Exception as e:
+        print(f"Notification error: {e}")
 
     flash('Ticket reassigned successfully.', 'success')
     return redirect(url_for('ticket_detail', ticket_id=ticket_id))
+
+@app.route('/bulk_assign_it_tickets', methods=['POST'])
+@admin_required
+def bulk_assign_it_tickets():
+    """Bulk assign all IT tickets to a specific admin"""
+    assign_to = request.form.get('assign_to')
+    
+    if not assign_to:
+        flash('Please select an admin to assign tickets to.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    try:
+        assign_to_id = int(assign_to)
+    except ValueError:
+        flash('Invalid user selected.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    db = Database()
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Get all IT assigned tickets that are not closed
+        cursor.execute("""
+            SELECT id FROM tickets 
+            WHERE assigned_to = 'IT' AND status != 'closed'
+        """)
+        it_tickets = cursor.fetchall()
+        
+        if not it_tickets:
+            flash('No IT tickets found to assign.', 'info')
+            conn.close()
+            return redirect(url_for('dashboard'))
+        
+        # Assign all to selected admin
+        ticket_ids = [ticket[0] for ticket in it_tickets]
+        placeholders = ','.join('?' * len(ticket_ids))
+        
+        cursor.execute(f"""
+            UPDATE tickets 
+            SET assigned_to = ?, 
+                status = CASE WHEN status = 'new' THEN 'assigned' ELSE status END,
+                updated_at = datetime('now', 'localtime')
+            WHERE id IN ({placeholders})
+        """, [assign_to_id] + ticket_ids)
+        
+        conn.commit()
+        
+        # Get assigned admin name
+        cursor.execute("SELECT full_name FROM users WHERE id = ?", (assign_to_id,))
+        admin_name = cursor.fetchone()[0]
+        
+        flash(f'Successfully assigned {len(ticket_ids)} IT ticket(s) to {admin_name}!', 'success')
+        
+        # Send notifications
+        for ticket_id in ticket_ids:
+            try:
+                notify_on_assigned(ticket_id, actor_user_id=session.get('user_id'), assigned_to_id=assign_to_id)
+            except:
+                pass
+    
+    except Exception as e:
+        flash(f'Error assigning tickets: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('dashboard'))
 
 @app.route('/add_watchers/<int:ticket_id>', methods=['POST'])
 @login_required
@@ -1861,7 +2283,8 @@ def add_watchers(ticket_id):
         flash('Please enter at least one watcher.', 'error')
         return redirect(url_for('ticket_detail', ticket_id=ticket_id))
 
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
     cursor.execute("SELECT assigned_to FROM tickets WHERE id = ?", (ticket_id,))
@@ -1872,13 +2295,10 @@ def add_watchers(ticket_id):
         return redirect(url_for('dashboard'))
 
     assigned_to = row[0]
-    # Check permission: admin, assigned_to, or creator
-    # Check permission: admin, assigned_to, creator, or existing watcher
     cursor.execute("SELECT created_by FROM tickets WHERE id = ?", (ticket_id,))
     creator_row = cursor.fetchone()
     creator_id = creator_row[0] if creator_row else None
 
-    # Check if user is a watcher
     cursor.execute("SELECT 1 FROM ticket_watchers WHERE ticket_id = ? AND user_id = ?", (ticket_id, user_id))
     is_watcher = cursor.fetchone() is not None
 
@@ -1908,9 +2328,6 @@ def add_watchers(ticket_id):
         flash(f'Successfully added {len(added_watchers)} watcher(s): {", ".join(added_watchers)}', 'success')
 
     return redirect(url_for('ticket_detail', ticket_id=ticket_id))
-    # Email notifications disabled for adding watchers
-    # if added_watchers_ids:
-    #     notify_on_watchers_added(ticket_id, actor_user_id=user_id, watcher_user_ids=added_watchers_ids)
 
 @app.route('/remove_watcher/<int:ticket_id>', methods=['POST'])
 @login_required
@@ -1928,17 +2345,16 @@ def remove_watcher(ticket_id):
         flash('Invalid watcher ID.', 'error')
         return redirect(url_for('ticket_detail', ticket_id=ticket_id))
     
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
     
-    # Check if ticket exists
     cursor.execute("SELECT id FROM tickets WHERE id = ?", (ticket_id,))
     if not cursor.fetchone():
         conn.close()
         flash('Ticket not found.', 'error')
         return redirect(url_for('dashboard'))
     
-    # Remove watcher
     cursor.execute("""
         DELETE FROM ticket_watchers 
         WHERE ticket_id = ? AND user_id = ?
@@ -1951,35 +2367,10 @@ def remove_watcher(ticket_id):
     flash('Watcher removed successfully!', 'success')
     return redirect(url_for('ticket_detail', ticket_id=ticket_id))
 
-@app.before_request
-def manage_session():
-
-    # Only enforce idle timeout for authenticated users
-    if 'user_id' not in session:
-        return
-
-    idle_seconds = 60 * 60  # 1 hour idle timeout
-    now = time.time()
-    last_active = session.get('last_activity', now)
-
-    if now - last_active > idle_seconds:
-        logging.info(f"Session expired for user {session.get('user_id')}, last_active: {last_active}, now: {now}")
-        session.clear()
-        flash('Session expired. Please log in again.', 'warning')
-        return redirect(url_for('login'))
-
-    # Rolling refresh of activity + cookie
-    session['last_activity'] = now
-    session.permanent = True
-    session.modified = True
-
-    # Don’t interfere with static assets
-    if request.endpoint and request.endpoint.startswith('static'):
-        return
-
 def log_activity(user_id, action, details=None):
     try:
-        conn = Database().get_connection()
+        db = Database()
+        conn = db.get_connection()
         cursor = conn.cursor()
         ip_address = request.environ.get('HTTP_X_FORWARDED_FOR', request.environ.get('REMOTE_ADDR', 'Unknown'))
         cursor.execute("""
@@ -1991,11 +2382,53 @@ def log_activity(user_id, action, details=None):
     except Exception:
         pass
 
+@app.route('/ticket/<int:ticket_id>/mute', methods=['POST'])
+@login_required
+def mute_ticket(ticket_id):
+    user_id = session.get('user_id')
+    db = Database()
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    
+    # Dodaj korisnika u muted listu
+    cursor.execute("""
+        INSERT OR IGNORE INTO ticket_muted_users (ticket_id, user_id)
+        VALUES (?, ?)
+    """, (ticket_id, user_id))
+    
+    conn.commit()
+    conn.close()
+    
+    flash('Notifications muted for this ticket.', 'success')
+    return redirect(url_for('ticket_detail', ticket_id=ticket_id))
+
+
+@app.route('/ticket/<int:ticket_id>/unmute', methods=['POST'])
+@login_required
+def unmute_ticket(ticket_id):
+    user_id = session.get('user_id')
+    db = Database()
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    
+    # Ukloni korisnika iz muted liste
+    cursor.execute("""
+        DELETE FROM ticket_muted_users
+        WHERE ticket_id=? AND user_id=?
+    """, (ticket_id, user_id))
+    
+    conn.commit()
+    conn.close()
+    
+    flash('Notifications unmuted for this ticket.', 'info')
+    return redirect(url_for('ticket_detail', ticket_id=ticket_id))
+
 
 @app.route('/admin/logs')
 @admin_required
 def view_logs():
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
     page = request.args.get('page', 1, type=int)
@@ -2018,7 +2451,6 @@ def view_logs():
 
     return render_template('admin_logs.html', logs=logs, page=page, total=total, per_page=per_page)
 
-
 @app.route('/search')
 @login_required
 def search():
@@ -2029,7 +2461,8 @@ def search():
     user_id = session.get('user_id')
     role = session.get('role')
 
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
     search_term = f"%{query}%"
@@ -2072,7 +2505,6 @@ def search():
 
     return render_template('search_results.html', tickets=tickets, query=query)
 
-
 @app.route('/save_template', methods=['POST'])
 @login_required
 def save_template():
@@ -2087,7 +2519,8 @@ def save_template():
         flash('Template name, title and description are required.', 'error')
         return redirect(url_for('create_ticket'))
 
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -2102,13 +2535,13 @@ def save_template():
     flash('Template saved successfully!', 'success')
     return redirect(url_for('create_ticket'))
 
-
 @app.route('/load_template/<int:template_id>')
 @login_required
 def load_template(template_id):
     user_id = session.get('user_id')
 
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -2139,13 +2572,13 @@ def load_template(template_id):
         }
     )
 
-
 @app.route('/delete_template/<int:template_id>', methods=['POST'])
 @login_required
 def delete_template(template_id):
     user_id = session.get('user_id')
 
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -2160,9 +2593,9 @@ def delete_template(template_id):
     flash('Template deleted successfully!', 'success')
     return redirect(url_for('create_ticket'))
 
-
 def get_user_templates(user_id):
-    conn = Database().get_connection()
+    db = Database()
+    conn = db.get_connection()
     cursor = conn.cursor()
     cursor.execute("""
         SELECT * FROM ticket_templates 
@@ -2173,11 +2606,5 @@ def get_user_templates(user_id):
     conn.close()
     return templates
 
-
-if __name__ == '__main__':
-    import logging
-    log = logging.getLogger('werkzeug')
-    log.setLevel(logging.ERROR)
-
-    _ensure_upload_dir()
+if __name__ == '__main__':    
     app.run(debug=False, host='0.0.0.0', port=5000)
