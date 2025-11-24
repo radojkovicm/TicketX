@@ -6,7 +6,7 @@
 
 <!-- JSON PODACI ZA KORISNIKE - SAFE ZA EDITOR -->
 <script id="all-users-json" type="application/json">
-    {{ users | map(attribute=1) | list | tojson }}
+    {{ all_users | map(attribute=1) | list | tojson }}
 </script>
 
 <div class="row">
@@ -38,10 +38,15 @@
                         <form method="POST" action="{{ url_for('reassign_ticket', ticket_id=ticket[0]) }}" class="d-flex align-items-center gap-2">
                             <label class="mb-0">Reassign to:</label>
                             <select name="new_assigned_to" class="form-select form-select-sm" style="width:200px;" required>
-                                <option value="">Select user</option>
-                                {% for user in users %}
-                                <option value="{{ user[0] }}" {% if user[0] == ticket[7] %}selected{% endif %}>{{ user[1] }}</option>
-                                {% endfor %}
+                                <option value="">Select user...</option>
+                                <option value="IT" {% if ticket[11] == 'IT' or not ticket[11] %}selected{% endif %}>IT Team (Unassigned)</option>
+                                {% if users %}
+                                <optgroup label="Users">
+                                    {% for user in users %}
+                                    <option value="{{ user[0] }}" {% if ticket[11] == user[0] %}selected{% endif %}>{{ user[1] }}</option>
+                                    {% endfor %}
+                                </optgroup>
+                                {% endif %}
                             </select>
                             <button type="submit" class="btn btn-sm btn-outline-primary">Reassign</button>
                         </form>
@@ -84,8 +89,28 @@
                         {% else %}
                         None
                         {% endif %}
+                    <!-- ✅ DODAJ OVO OVDE: Mute/Unmute dugme -->
+                    {% set is_watcher = watchers|selectattr(0, "equalto", session.user_id)|list|length > 0 %}
+                    {% if is_watcher %}
+                    <div class="mt-2">
+                        {% if is_muted %}
+                        <form method="POST" action="{{ url_for('unmute_ticket', ticket_id=ticket[0]) }}" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-success">
+                                🔔 Unmute notifications
+                            </button>
+                        </form>
+                        <small class="text-muted ms-2">You won't receive emails for this ticket</small>
+                        {% else %}
+                        <form method="POST" action="{{ url_for('mute_ticket', ticket_id=ticket[0]) }}" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-warning">
+                                🔕 Mute notifications
+                            </button>
+                        </form>
+                        <small class="text-muted ms-2">You're receiving emails for this ticket</small>
+                        {% endif %}
                     </div>
-
+                    {% endif %}
+                </div>
                     {% set is_watcher = watchers|selectattr(0, "equalto", session.user_id)|list|length > 0 %}
 
                     {% if session.role=='admin' or session.user_id==ticket[6] or is_watcher %}
@@ -102,24 +127,54 @@
                     {% endif %}
                 </div>
 
-                <!-- ADMIN ACTIONS -->
-                {% if session.role == 'admin' and ticket[5] != 'closed' %}
+                <!-- STATUS CHANGE & ACTIONS -->
                 <div class="mb-3">
-                    <h6>IT Actions:</h6>
-                    <div class="d-flex flex-wrap gap-2">
-                        <form method="POST" action="{{ url_for('update_ticket_status') }}" class="d-inline">
+                    {% set can_change_status = (session.role == 'admin') or (session.user_id == ticket[7]) or (session.user_id == ticket[6]) %}
+                    
+                    {% if can_change_status %}
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <strong>Quick Status Change:</strong>
+                        <form method="POST" action="{{ url_for('update_ticket_status') }}" class="d-inline-flex align-items-center gap-2">
                             <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
-                            {% if ticket[5] == 'new' %}
-                            <button type="submit" name="status" value="assigned" class="btn btn-primary">Assign Ticket</button>
-                            {% elif ticket[5] == 'assigned' %}
-                            <button type="submit" name="status" value="in_progress" class="btn btn-success">Start Work</button>
-                            {% elif ticket[5] == 'in_progress' %}
-                            <button type="submit" name="status" value="awaiting_confirmation" class="btn btn-warning">Request Confirmation</button>
-                            {% endif %}
+                            <select name="status" class="form-select form-select-sm" style="width: 200px;" onchange="this.form.submit()">
+                                <option value="">Change status...</option>
+                                {% if ticket[5] in ['new', 'assigned'] and (session.role == 'admin' or session.user_id == ticket[7]) %}
+                                <option value="in_progress">▶️ Start Work</option>
+                                {% endif %}
+                                {% if ticket[5] == 'in_progress' and (session.role == 'admin' or session.user_id == ticket[7]) %}
+                                <option value="awaiting_confirmation">✅ Mark Complete</option>
+                                {% endif %}
+                                {% if ticket[5] == 'awaiting_confirmation' and session.user_id == ticket[6] %}
+                                <option value="closed">✔️ Confirm & Close</option>
+                                <option value="in_progress">🔄 Needs More Work</option>
+                                {% endif %}
+                                {% if session.role == 'admin' and ticket[5] != 'closed' %}
+                                <option value="closed">❌ Force Close</option>
+                                {% endif %}
+                                {% if ticket[5] == 'closed' and (session.role == 'admin' or session.user_id == ticket[6] or session.user_id == ticket[7]) %}
+                                <option value="in_progress">🔄 Reopen Ticket</option>
+                                {% endif %}
+                            </select>
                         </form>
                     </div>
+                    {% endif %}
+                    
+                    <!-- ADDITIONAL ACTIONS -->
+                    {% if session.role == 'admin' and ticket[5] != 'closed' %}
+                    <div class="mb-2">
+                        <strong class="text-muted small">Admin Actions:</strong>
+                        <div class="d-flex flex-wrap gap-2 mt-1">
+                            {% if session.user_id != ticket[7] %}
+                            <form method="POST" action="{{ url_for('update_ticket_status') }}" class="d-inline">
+                                <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
+                                <button type="submit" name="status" value="assigned" class="btn btn-sm btn-outline-primary">Assign to Me</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
-                {% endif %}
+
 
                 <!-- USER ACTIONS -->
                 {% if session.user_id == ticket[6] and ticket[5] != 'closed' %}
@@ -167,10 +222,10 @@
                 <h5>Activity & Comments</h5>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ url_for('add_comment') }}" class="mb-4">
+                <form method="POST" action="{{ url_for('add_comment') }}" class="mb-4" id="commentForm">
                     <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
                     <div class="mb-3">
-                        <textarea class="form-control" name="comment" rows="4" placeholder="" required></textarea>
+                        <textarea class="form-control" name="comment" id="commentTextarea" rows="4" placeholder="Type your comment..." required></textarea>
                     </div>
                     <button type="submit" class="btn btn-primary">Add Comment</button>
                 </form>
@@ -226,12 +281,16 @@
                 <h5>Attachments</h5>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ url_for('upload_attachment') }}" enctype="multipart/form-data" class="mb-3">
+                <form method="POST" action="{{ url_for('upload_attachment') }}" enctype="multipart/form-data" class="mb-3" id="attachmentForm">
                     <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
                     <div class="mb-2">
-                        <input type="file" class="form-control form-control-sm" name="file" required>
+                        <input type="file" class="form-control form-control-sm" name="file" id="attachmentFileInput" multiple>
                     </div>
-                    <button type="submit" class="btn btn-sm btn-outline-primary">Upload File</button>
+                    <div id="pasteZone" style="border:2px dashed #bbb; padding:12px; border-radius:8px; min-height:44px; background:#f9f9f9; cursor:pointer; text-align:center; color:#888;">
+                        Click here or press Ctrl+V to paste images (max 5MB)
+                    </div>
+                    <div id="pastePreviews" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;"></div>
+                    <button type="submit" class="btn btn-sm btn-outline-primary mt-2 w-100">Upload Files</button>
                 </form>
 
                 {% if attachments %}
@@ -255,6 +314,7 @@
                 {% endif %}
             </div>
         </div>
+
 
         <!-- QUICK ACTIONS -->
         <div class="card mt-3">
@@ -282,6 +342,49 @@
         </div>
     </div>
 </div>
+
+<!-- ACTIVITY LOG -->
+{% if activity_log %}
+<div class="card mt-4">
+    <div class="card-header" style="background-color: #f8f9fa; padding: 0.75rem 1rem;">
+        <h6 class="mb-0 text-muted" style="font-size: 0.875rem;">
+            <i class="bi bi-clock-history"></i> Activity History
+        </h6>
+    </div>
+    <div class="card-body" style="padding: 0.75rem;">
+        <div class="list-group list-group-flush">
+            {% for log in activity_log %}
+            <div class="list-group-item border-0" style="padding: 0.5rem 0; font-size: 0.8rem; color: #6c757d;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div style="flex: 1;">
+                        <strong style="color: #495057;">{{ log[4] }}</strong>
+                        
+                        {% if log[2] == 'reassigned' %}
+                            <span>reassigned ticket from <strong>{{ log[5] or 'Unassigned' }}</strong> to <strong>{{ log[6] }}</strong></span>
+                        {% elif log[2] == 'status_changed' %}
+                            <span>changed status from <strong>{{ log[5]|replace('_', ' ')|title }}</strong> to <strong>{{ log[6]|replace('_', ' ')|title }}</strong></span>
+                        {% elif log[2] == 'watcher_added' %}
+                            <span>added <strong>{{ log[6] }}</strong> as watcher</span>
+                        {% elif log[2] == 'watcher_removed' %}
+                            <span>removed <strong>{{ log[5] }}</strong> from watchers</span>
+                        {% elif log[2] == 'attachment_uploaded' %}
+                            <span>uploaded attachment <strong>{{ log[6] }}</strong></span>
+                        {% elif log[2] == 'comment_added' %}
+                            <span>added a comment</span>
+                        {% else %}
+                            <span>performed action: {{ log[2] }}</span>
+                        {% endif %}
+                    </div>
+                    <small class="text-muted" style="white-space: nowrap; margin-left: 1rem; font-size: 0.75rem;">
+                        {{ log[3] }}
+                    </small>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <!-- BACK BUTTONS -->
 <div class="mt-3">
@@ -385,5 +488,234 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 </script>
+
+<!-- CTRL+V PASTE HANDLER (ATTACHMENTS SIDEBAR) -->
+<script>
+(function() {
+    const pasteZone = document.getElementById('pasteZone');
+    const previews = document.getElementById('pastePreviews');
+    const fileInput = document.getElementById('attachmentFileInput');
+    
+    if (!pasteZone || !previews || !fileInput) return;
+
+    const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+    const pastedFiles = []; // Track pasted files
+    const manualFiles = []; // Track manually selected files
+
+    function updateFileInput() {
+        const dt = new DataTransfer();
+        // Add manually selected files
+        manualFiles.forEach(f => dt.items.add(f));
+        // Add pasted files
+        pastedFiles.forEach(f => dt.items.add(f));
+        fileInput.files = dt.files;
+    }
+
+    function getFileIcon(fileType, fileName) {
+        const ext = fileName.split('.').pop().toLowerCase();
+        if (fileType.startsWith('image/')) return '🖼️';
+        if (ext === 'pdf') return '📄';
+        if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊';
+        if (['doc', 'docx'].includes(ext)) return '📝';
+        if (['zip', 'rar', '7z'].includes(ext)) return '📦';
+        return '📎';
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function addPreview(file, isPasted) {
+        // Check if already exists
+        const existing = Array.from(previews.children).find(
+            child => child.dataset.fileName === file.name && child.dataset.fileSize === String(file.size)
+        );
+        if (existing) return;
+
+        const wrap = document.createElement('div');
+        wrap.dataset.fileName = file.name;
+        wrap.dataset.fileSize = file.size;
+        if (isPasted) wrap.dataset.pasted = 'true';
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.innerHTML = '&times;';
+        deleteBtn.type = 'button';
+        deleteBtn.style.cssText = 'position:absolute;top:2px;right:2px;width:20px;height:20px;border:none;background:rgba(255,0,0,0.8);color:#fff;border-radius:50%;cursor:pointer;font-size:14px;line-height:1;padding:0;z-index:10;';
+        deleteBtn.onclick = function() {
+            if (isPasted) {
+                const idx = pastedFiles.indexOf(file);
+                if (idx > -1) pastedFiles.splice(idx, 1);
+            } else {
+                const idx = manualFiles.indexOf(file);
+                if (idx > -1) manualFiles.splice(idx, 1);
+            }
+            updateFileInput();
+            wrap.remove();
+            if (file.type.startsWith('image/')) {
+                URL.revokeObjectURL(wrap.querySelector('img')?.src);
+            }
+        };
+
+        // Check if it's an image
+        if (file.type.startsWith('image/')) {
+            const url = URL.createObjectURL(file);
+            wrap.style.cssText = 'position:relative;width:96px;height:96px;border:1px solid #ddd;border-radius:6px;overflow:hidden;background:#fafafa;';
+            
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = file.name;
+            img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+            
+            const badge = document.createElement('div');
+            badge.textContent = formatFileSize(file.size);
+            badge.style.cssText = 'position:absolute;left:4px;bottom:4px;background:rgba(0,0,0,0.7);color:#fff;font-size:9px;padding:2px 4px;border-radius:3px;';
+            
+            wrap.appendChild(img);
+            wrap.appendChild(badge);
+        } else {
+            // Non-image file
+            wrap.style.cssText = 'position:relative;min-width:140px;max-width:200px;border:1px solid #ddd;border-radius:6px;padding:8px 28px 8px 8px;background:#fafafa;display:flex;align-items:center;gap:8px;';
+            
+            const icon = document.createElement('span');
+            icon.textContent = getFileIcon(file.type, file.name);
+            icon.style.cssText = 'font-size:24px;flex-shrink:0;';
+            
+            const info = document.createElement('div');
+            info.style.cssText = 'flex:1;min-width:0;';
+            
+            const name = document.createElement('div');
+            name.textContent = file.name;
+            name.style.cssText = 'font-size:11px;font-weight:500;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+            name.title = file.name;
+            
+            const size = document.createElement('div');
+            size.textContent = formatFileSize(file.size);
+            size.style.cssText = 'font-size:9px;color:#666;';
+            
+            info.appendChild(name);
+            info.appendChild(size);
+            wrap.appendChild(icon);
+            wrap.appendChild(info);
+        }
+        
+        wrap.appendChild(deleteBtn);
+        previews.appendChild(wrap);
+    }
+
+    function handlePaste(items) {
+        for (const item of items) {
+            if (item.kind === 'file' && item.type.startsWith('image/')) {
+                const f = item.getAsFile();
+                if (!f) continue;
+                if (f.size > MAX_SIZE) {
+                    alert('Image too large! Max 5MB.');
+                    continue;
+                }
+                const named = new File([f], `pasted_${Date.now()}.png`, { type: f.type || 'image/png' });
+                pastedFiles.push(named);
+                updateFileInput();
+                addPreview(named, true);
+                
+                // Update paste zone text
+                if (pasteZone.textContent.includes('Click here')) {
+                    pasteZone.textContent = 'Paste more or use file picker above';
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Paste on zone
+    pasteZone.addEventListener('paste', function(e) {
+        const items = (e.clipboardData || window.clipboardData)?.items;
+        if (!items) return;
+        if (handlePaste(items)) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    });
+
+    // Global paste
+    document.addEventListener('paste', function(e) {
+        const items = (e.clipboardData || window.clipboardData)?.items;
+        if (!items) return;
+        if (handlePaste(items)) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    });
+
+    // Show previews for manually selected files
+    fileInput.addEventListener('change', function() {
+        for (const file of fileInput.files) {
+            const alreadyManual = manualFiles.some(mf => mf.name === file.name && mf.size === file.size);
+            const alreadyPasted = pastedFiles.some(pf => pf.name === file.name && pf.size === file.size);
+            
+            if (!alreadyManual && !alreadyPasted) {
+                manualFiles.push(file);
+                addPreview(file, false);
+            }
+        }
+        updateFileInput();
+    });
+    
+    console.log('✅ Paste handler loaded for attachments');
+})();
+</script>
+
+<!-- MATCH DASHBOARD STYLING -->
+<style>
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+}
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border-radius: 0.5rem;
+}
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    padding: 1rem 1.25rem;
+}
+.card-header h4, .card-header h5 {
+    margin-bottom: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+.badge {
+    font-weight: 500;
+    padding: 0.4em 0.7em;
+    font-size: 0.875rem;
+}
+.btn {
+    font-weight: 500;
+}
+.btn-sm {
+    font-size: 0.875rem;
+    padding: 0.375rem 0.75rem;
+}
+.preserve-whitespace {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+.comment-item {
+    background-color: #f8f9fa;
+}
+.comment-body {
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+.form-control, .form-select {
+    font-size: 0.95rem;
+}
+textarea.form-control {
+    font-family: inherit;
+}
+</style>
 
 {% endblock %}
