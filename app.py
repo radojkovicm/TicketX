@@ -27,7 +27,7 @@ IS_HTTPS = (os.getenv("IS_HTTPS", "false").strip().lower() == "true")
 
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 
-# ===== FILE UPLOAD SECURITY =====
+# ==== FILE UPLOAD SECURITY ====
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'txt', 'xlsx', 'xls', 'zip', 'rar'}
 ALLOWED_MIME_TYPES = {
     'image/png', 'image/jpeg', 'image/gif', 
@@ -49,8 +49,8 @@ def log_ticket_activity(ticket_id, user_id, action_type, old_value=None, new_val
     
     try:
         cursor.execute("""
-            INSERT INTO ticket_activity_log (ticket_id, user_id, action_type, old_value, new_value, details)
-            VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO ticket_activity_log (ticket_id, user_id, action_type, old_value, new_value, details)
+        VALUES (?, ?, ?, ?, ?, ?)
         """, (ticket_id, user_id, action_type, old_value, new_value, details))
         conn.commit()
     except Exception as e:
@@ -64,7 +64,7 @@ def allowed_file(filename, mimetype):
         return False
     ext = filename.rsplit('.', 1)[1].lower()
     return ext in ALLOWED_EXTENSIONS and mimetype in ALLOWED_MIME_TYPES
-# ===== END FILE UPLOAD SECURITY =====
+# ==== END FILE UPLOAD SECURITY ====
 
 def get_upload_path():
     year_month = datetime.now().strftime('%Y-%m')  # 2025-11 (jedan folder)
@@ -99,7 +99,7 @@ user_model = UserModel()
 ticket_model = TicketModel()
 category_model = CategoryModel()
 
-# ===== JINJA2 GLOBAL FUNCTIONS =====
+# ==== JINJA2 GLOBAL FUNCTIONS ====
 from datetime import datetime
 
 @app.context_processor
@@ -109,7 +109,7 @@ def inject_now():
         'now': datetime.now,
         'datetime': datetime
     }
-# ===== END JINJA2 GLOBALS =====
+# ==== END JINJA2 GLOBALS ====
 
 def _ensure_upload_dir():
     try:
@@ -118,7 +118,7 @@ def _ensure_upload_dir():
         pass
 
 _ensure_upload_dir()
-# ===== EXISTING CODE ABOVE (imports, config, etc.) =====
+# ==== EXISTING CODE ABOVE (imports, config, etc.) ====
 
 def ensure_initial_admin():
     """
@@ -156,8 +156,8 @@ def ensure_initial_admin():
         
         try:
             cursor.execute("""
-                INSERT INTO users (username, password, full_name, email, role, department_id, is_department_head)
-                VALUES (?, ?, ?, ?, 'admin', NULL, 0)
+            INSERT INTO users (username, password, full_name, email, role, department_id, is_department_head)
+            VALUES (?, ?, ?, ?, 'admin', NULL, 0)
             """, (admin_username, hashed_password, admin_fullname, admin_email))
             conn.commit()
             logging.info(f"✅ Initial admin user created: {admin_username}")
@@ -166,7 +166,7 @@ def ensure_initial_admin():
             logging.error(f"❌ Error creating initial admin: {str(e)}")
     else:
         logging.info(f"✅ Admin user(s) already exist ({admin_count} found). Skipping initial setup.")
-        
+    
     try:
         ensure_initial_admin()
     except Exception as e:
@@ -246,9 +246,9 @@ def my_profile():
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT id, username, password, email, full_name, role, department_id, is_department_head
-        FROM users
-        WHERE id = ?
+    SELECT id, username, password, email, full_name, role, department_id, is_department_head
+    FROM users
+    WHERE id = ?
     """, (user_id,))
     user = cursor.fetchone()
 
@@ -269,14 +269,14 @@ def my_profile():
         if not full_name:
             flash('Full name is required.', 'error')
             return render_template('my_profile.html',
-                                user=user,
-                                departments=departments)
+                user=user,
+                departments=departments)
 
         if email and not valid_email(email):
             flash('Invalid email format.', 'error')
             return render_template('my_profile.html',
-                                user=user,
-                                departments=departments)
+                user=user,
+                departments=departments)
 
         department_id = None
         if department_id_raw and department_id_raw.strip() != '':
@@ -285,8 +285,8 @@ def my_profile():
             except ValueError:
                 flash('Invalid department.', 'error')
                 return render_template('my_profile.html',
-                                    user=user,
-                                    departments=departments)
+                    user=user,
+                    departments=departments)
 
         update_password = False
         hashed_password = user[2]
@@ -294,27 +294,27 @@ def my_profile():
             if new_password != confirm_password:
                 flash('Passwords do not match.', 'error')
                 return render_template('my_profile.html',
-                                    user=user,
-                                    departments=departments)
+                    user=user,
+                    departments=departments)
             if len(new_password) < 8:
                 flash('Password must be at least 8 characters.', 'error')
                 return render_template('my_profile.html',
-                                    user=user,
-                                    departments=departments)
+                    user=user,
+                    departments=departments)
             hashed_password = hashlib.sha256(new_password.encode()).hexdigest()
             update_password = True
 
         if update_password:
             cursor.execute("""
-                UPDATE users
-                SET full_name = ?, email = ?, department_id = ?, password = ?
-                WHERE id = ?
+            UPDATE users
+            SET full_name = ?, email = ?, department_id = ?, password = ?
+            WHERE id = ?
             """, (full_name, email if email != '' else None, department_id, hashed_password, user_id))
         else:
             cursor.execute("""
-                UPDATE users
-                SET full_name = ?, email = ?, department_id = ?
-                WHERE id = ?
+            UPDATE users
+            SET full_name = ?, email = ?, department_id = ?
+            WHERE id = ?
             """, (full_name, email if email != '' else None, department_id, user_id))
 
         conn.commit()
@@ -333,21 +333,22 @@ def my_profile():
 
     conn.close()
     return render_template('my_profile.html',
-                        user=user,
-                        departments=departments)
+        user=user,
+        departments=departments)
 
-# ===== WHITELIST FOR SORTING (SQL INJECTION PROTECTION) =====
+# ==== WHITELIST FOR SORTING (SQL INJECTION PROTECTION) ====
 ALLOWED_SORT_OPTIONS = {
     'updated_at_desc': 't.updated_at DESC',
     'updated_at_asc': 't.updated_at ASC',
     'created_at_desc': 't.created_at DESC',
     'created_at_asc': 't.created_at ASC',
     'priority_desc': "CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END ASC",
-    'priority_asc': "CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END DESC",
+    'priority_asc': "CASE WHEN t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END DESC",
     'due_date_desc': 'CASE WHEN t.due_date IS NULL OR t.due_date = "" THEN 0 ELSE 1 END DESC, t.due_date DESC',
     'due_date_asc': 'CASE WHEN t.due_date IS NULL OR t.due_date = "" THEN 0 ELSE 1 END DESC, t.due_date ASC'
 }
-# ===== END WHITELIST =====
+# ==== END WHITELIST ====
+
 
 @app.route('/dashboard')
 @login_required
@@ -370,9 +371,9 @@ def dashboard():
 
     # Load IT admins
     cursor.execute("""
-        SELECT id, full_name FROM users
-        WHERE role = 'admin' AND LOWER(full_name) != 'admin'
-        ORDER BY full_name
+    SELECT id, full_name FROM users
+    WHERE role = 'admin' AND LOWER(full_name) != 'admin'
+    ORDER BY full_name
     """)
     it_admins = cursor.fetchall()
     it_admin_ids = [admin[0] for admin in it_admins]
@@ -399,15 +400,15 @@ def dashboard():
     if role != 'admin':
         # All Public Tickets (non-admin users)
         query_browse_all = f"""
-            SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-                c.name as category_name, u.full_name as created_by_name,
-                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
-            FROM tickets t
-            LEFT JOIN categories c ON t.category_id = c.id
-            LEFT JOIN users u ON t.created_by = u.id
-            LEFT JOIN users a ON t.assigned_to = a.id
-            WHERE t.is_private = 0 AND {status_condition}
-            ORDER BY {order_by}
+        SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+        c.name as category_name, u.full_name as created_by_name,
+        CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+        FROM tickets t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN users u ON t.created_by = u.id
+        LEFT JOIN users a ON t.assigned_to = a.id
+        WHERE t.is_private = 0 AND {status_condition}
+        ORDER BY {order_by}
         """
         cursor.execute(query_browse_all)
         tickets_browse_all_public = cursor.fetchall()
@@ -416,46 +417,46 @@ def dashboard():
         user_department_id = session.get('department_id')
         if user_department_id:
             query_browse_dept = f"""
-                SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-                    c.name as category_name, u.full_name as created_by_name,
-                    CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
-                FROM tickets t
-                LEFT JOIN categories c ON t.category_id = c.id
-                LEFT JOIN users u ON t.created_by = u.id
-                LEFT JOIN users a ON t.assigned_to = a.id
-                LEFT JOIN ticket_watchers tw ON t.id = tw.ticket_id
-                WHERE (u.department_id = ? OR a.department_id = ?)
-                AND (t.is_private = 0 OR t.created_by = ? OR t.assigned_to = ? OR tw.user_id = ?)
-                AND {status_condition}
-                ORDER BY {order_by}
+            SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+            c.name as category_name, u.full_name as created_by_name,
+            CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+            FROM tickets t
+            LEFT JOIN categories c ON t.category_id = c.id
+            LEFT JOIN users u ON t.created_by = u.id
+            LEFT JOIN users a ON t.assigned_to = a.id
+            LEFT JOIN ticket_watchers tw ON t.id = tw.ticket_id
+            WHERE (u.department_id = ? OR a.department_id = ?)
+            AND (t.is_private = 0 OR t.created_by = ? OR t.assigned_to = ? OR tw.user_id = ?)
+            AND {status_condition}
+            ORDER BY {order_by}
             """
             cursor.execute(query_browse_dept, (user_department_id, user_department_id, user_id, user_id, user_id))
             tickets_browse_department = cursor.fetchall()
     else:
         # Admins see all tickets in Browse
         query_browse_all_admin = f"""
-            SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-                c.name as category_name, u.full_name as created_by_name,
-                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
-            FROM tickets t
-            LEFT JOIN categories c ON t.category_id = c.id
-            LEFT JOIN users u ON t.created_by = u.id
-            LEFT JOIN users a ON t.assigned_to = a.id
-            WHERE {status_condition}
-            ORDER BY {order_by}
+        SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+        c.name as category_name, u.full_name as created_by_name,
+        CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+        FROM tickets t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN users u ON t.created_by = u.id
+        LEFT JOIN users a ON t.assigned_to = a.id
+        WHERE {status_condition}
+        ORDER BY {order_by}
         """
         cursor.execute(query_browse_all_admin)
         tickets_browse_all_public = cursor.fetchall()
         tickets_browse_department = []
 
     if role != 'admin':
-        # ===== REGULAR USER QUERIES =====
+        # ==== REGULAR USER QUERIES ====
         
         # Browse Tickets: All Public & My Department
         query_browse_all = f"""
         SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-            c.name as category_name, u.full_name as created_by_name,
-            CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+        c.name as category_name, u.full_name as created_by_name,
+        CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
         FROM tickets t
         LEFT JOIN categories c ON t.category_id = c.id
         LEFT JOIN users u ON t.created_by = u.id
@@ -469,20 +470,20 @@ def dashboard():
         user_department_id = session.get('department_id')
         if user_department_id:
             query_browse_dept = f"""
-                SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-                    c.name as category_name, u.full_name as created_by_name,
-                    CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
-                FROM tickets t
-                LEFT JOIN categories c ON t.category_id = c.id
-                LEFT JOIN users u ON t.created_by = u.id
-                LEFT JOIN users a ON t.assigned_to = a.id
-                LEFT JOIN ticket_watchers tw ON t.id = tw.ticket_id
-                WHERE (
-                    (u.department_id = ? OR a.department_id = ?) AND t.is_private = 0
-                    OR t.created_by = ?
-                    OR t.assigned_to = ?
-                    OR tw.user_id = ?
-                )
+            SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+            c.name as category_name, u.full_name as created_by_name,
+            CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+            FROM tickets t
+            LEFT JOIN categories c ON t.category_id = c.id
+            LEFT JOIN users u ON t.created_by = u.id
+            LEFT JOIN users a ON t.assigned_to = a.id
+            LEFT JOIN ticket_watchers tw ON t.id = tw.ticket_id
+            WHERE (
+            (u.department_id = ? OR a.department_id = ?) AND t.is_private = 0
+            OR t.created_by = ?
+            OR t.assigned_to = ?
+            OR tw.user_id = ?
+            )
             AND {status_condition}
             ORDER BY {order_by}
 
@@ -496,77 +497,77 @@ def dashboard():
             if current_filter == 'closed':
                 # Show ONLY closed tickets
                 query_assigned = f"""
-                    SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, 
-                        t.created_by, t.assigned_to, t.due_date,
-                        c.name as category_name,
-                        u.full_name as created_by_name,
-                        CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
-                    FROM tickets t
-                    LEFT JOIN categories c ON t.category_id = c.id
-                    LEFT JOIN users u ON t.created_by = u.id
-                    LEFT JOIN users a ON t.assigned_to = a.id
-                    WHERE t.assigned_to = ? AND t.status = 'closed'
-                    ORDER BY {order_by}
+                SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, 
+                t.created_by, t.assigned_to, t.due_date,
+                c.name as category_name,
+                u.full_name as created_by_name,
+                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+                FROM tickets t
+                LEFT JOIN categories c ON t.category_id = c.id
+                LEFT JOIN users u ON t.created_by = u.id
+                LEFT JOIN users a ON t.assigned_to = a.id
+                WHERE t.assigned_to = ? AND t.status = 'closed'
+                ORDER BY {order_by}
                 """
             else:
                 # Show active or all (excluding closed for active)
                 status_cond = "t.status != 'closed'" if current_filter == 'active' else "1=1"
                 query_assigned = f"""
-                    SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, 
-                        t.created_by, t.assigned_to, t.due_date,
-                        c.name as category_name,
-                        u.full_name as created_by_name,
-                        CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
-                    FROM tickets t
-                    LEFT JOIN categories c ON t.category_id = c.id
-                    LEFT JOIN users u ON t.created_by = u.id
-                    LEFT JOIN users a ON t.assigned_to = a.id
-                    WHERE t.assigned_to = ? AND {status_cond}
-                    ORDER BY {order_by}
+                SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, 
+                t.created_by, t.assigned_to, t.due_date,
+                c.name as category_name,
+                u.full_name as created_by_name,
+                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+                FROM tickets t
+                LEFT JOIN categories c ON t.category_id = c.id
+                LEFT JOIN users u ON t.created_by = u.id
+                LEFT JOIN users a ON t.assigned_to = a.id
+                WHERE t.assigned_to = ? AND {status_cond}
+                ORDER BY {order_by}
                 """
-            
+                
             cursor.execute(query_assigned, (user_id,))
             tickets_assigned_to_me = cursor.fetchall()
             
             # 2. My created tickets (same fix)
             if current_filter == 'closed':
                 query_created = f"""
-                    SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, 
-                        t.created_by, t.assigned_to, t.due_date,
-                        c.name as category_name,
-                        u.full_name as created_by_name,
-                        CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
-                    FROM tickets t
-                    LEFT JOIN categories c ON t.category_id = c.id
-                    LEFT JOIN users u ON t.created_by = u.id
-                    LEFT JOIN users a ON t.assigned_to = a.id
-                    WHERE t.created_by = ? AND t.status = 'closed'
-                    ORDER BY {order_by}
+                SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, 
+                t.created_by, t.assigned_to, t.due_date,
+                c.name as category_name,
+                u.full_name as created_by_name,
+                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+                FROM tickets t
+                LEFT JOIN categories c ON t.category_id = c.id
+                LEFT JOIN users u ON t.created_by = u.id
+                LEFT JOIN users a ON t.assigned_to = a.id
+                WHERE t.created_by = ? AND t.status = 'closed'
+                ORDER BY {order_by}
                 """
             else:
                 status_cond = "t.status != 'closed'" if current_filter == 'active' else "1=1"
                 query_created = f"""
-                    SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, 
-                        t.created_by, t.assigned_to, t.due_date,
-                        c.name as category_name,
-                        u.full_name as created_by_name,
-                        CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
-                    FROM tickets t
-                    LEFT JOIN categories c ON t.category_id = c.id
-                    LEFT JOIN users u ON t.created_by = u.id
-                    LEFT JOIN users a ON t.assigned_to = a.id
-                    WHERE t.created_by = ? AND {status_cond}
-                    ORDER BY {order_by}
+                SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, 
+                t.created_by, t.assigned_to, t.due_date,
+                c.name as category_name,
+                u.full_name as created_by_name,
+                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+                FROM tickets t
+                LEFT JOIN categories c ON t.category_id = c.id
+                LEFT JOIN users u ON t.created_by = u.id
+                LEFT JOIN users a ON t.assigned_to = a.id
+                WHERE t.created_by = ? AND {status_cond}
+                ORDER BY {order_by}
                 """
-            
+                
             cursor.execute(query_created, (user_id,))
             tickets_my_created = cursor.fetchall()
-        
-        # Watched
-        query_watched = f"""
+            
+            # Watched
+            query_watched = f"""
             SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-                            c.name as category_name, u.full_name as created_by_name,
-                            CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+            c.name as category_name, u.full_name as created_by_name,
+            CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
             FROM tickets t
             JOIN ticket_watchers tw ON t.id = tw.ticket_id
             LEFT JOIN categories c ON t.category_id = c.id
@@ -574,24 +575,24 @@ def dashboard():
             LEFT JOIN users a ON t.assigned_to = a.id
             WHERE tw.user_id = ? AND {status_condition}
             ORDER BY {order_by}
-        """
-        cursor.execute(query_watched, (user_id,))
-        tickets_watched = cursor.fetchall()
+            """
+            cursor.execute(query_watched, (user_id,))
+            tickets_watched = cursor.fetchall()
 
     else:
-        # ===== ADMIN QUERIES =====
+        # ==== ADMIN QUERIES ====
         
         # Admins see all tickets in Browse
         query_browse_all_admin = f"""
-            SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-                c.name as category_name, u.full_name as created_by_name,
-                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
-            FROM tickets t
-            LEFT JOIN categories c ON t.category_id = c.id
-            LEFT JOIN users u ON t.created_by = u.id
-            LEFT JOIN users a ON t.assigned_to = a.id
-            WHERE {status_condition}
-            ORDER BY {order_by}
+        SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+        c.name as category_name, u.full_name as created_by_name,
+        CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+        FROM tickets t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN users u ON t.created_by = u.id
+        LEFT JOIN users a ON t.assigned_to = a.id
+        WHERE {status_condition}
+        ORDER BY {order_by}
         """
         cursor.execute(query_browse_all_admin)
         tickets_browse_all_public = cursor.fetchall()
@@ -599,34 +600,33 @@ def dashboard():
         
         # Admin: All tickets assigned to IT or any admin
         query_all_for_admin = f"""
-            SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-                            c.name as category_name, u.full_name as created_by_name,
-                            CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name,
-                            CASE WHEN t.created_by = ? THEN 'own' ELSE 'team' END as ticket_type
-            FROM tickets t
-            LEFT JOIN categories c ON t.category_id = c.id
-            LEFT JOIN users u ON t.created_by = u.id
-            LEFT JOIN users a ON t.assigned_to = a.id
-            WHERE (t.assigned_to = 'IT' OR t.assigned_to IN ({placeholders_admins}))
-            AND {status_condition}
-            ORDER BY {order_by}
+        SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+        c.name as category_name, u.full_name as created_by_name,
+        CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name,
+        CASE WHEN t.created_by = ? THEN 'own' ELSE 'team' END as ticket_type
+        FROM tickets t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN users u ON t.created_by = u.id
+        LEFT JOIN users a ON t.assigned_to = a.id
+        WHERE (t.assigned_to = 'IT' OR t.assigned_to IN ({placeholders_admins}))
+        AND {status_condition}
+        ORDER BY {order_by}
         """
         params_all_for_admin = [user_id] + it_admin_ids
         cursor.execute(query_all_for_admin, params_all_for_admin)
         tickets_all_for_admin = cursor.fetchall()
         
-        # ===== ADMIN: Assigned to ME specifically (INCLUDES IT tickets) =====
-        # ===== ADMIN: Assigned to ME specifically (NO IT tickets) =====
+        # ==== ADMIN: Assigned to ME specifically (INCLUDES IT tickets) ====
         query_assigned_to_me = f"""
-            SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-                c.name as category_name, u.full_name as created_by_name,
-                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
-            FROM tickets t
-            LEFT JOIN categories c ON t.category_id = c.id
-            LEFT JOIN users u ON t.created_by = u.id
-            LEFT JOIN users a ON t.assigned_to = a.id
-            WHERE t.assigned_to = ? AND {status_condition}
-            ORDER BY {order_by}
+        SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+        c.name as category_name, u.full_name as created_by_name,
+        CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+        FROM tickets t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN users u ON t.created_by = u.id
+        LEFT JOIN users a ON t.assigned_to = a.id
+        WHERE t.assigned_to = ? AND {status_condition}
+        ORDER BY {order_by}
         """
         cursor.execute(query_assigned_to_me, (user_id,))
         tickets_assigned_to_me = cursor.fetchall()
@@ -634,15 +634,15 @@ def dashboard():
         # Admin: My created (admins)
         placeholders = ','.join('?' for _ in it_admin_ids) if it_admin_ids else 'NULL'
         query_my_created = f"""
-            SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-                c.name as category_name, u.full_name as created_by_name,
-                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
-            FROM tickets t
-            LEFT JOIN categories c ON t.category_id = c.id
-            LEFT JOIN users u ON t.created_by = u.id
-            LEFT JOIN users a ON t.assigned_to = a.id
-            WHERE t.created_by IN ({placeholders}) AND {status_condition}
-            ORDER BY {order_by}
+        SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+        c.name as category_name, u.full_name as created_by_name,
+        CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+        FROM tickets t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN users u ON t.created_by = u.id
+        LEFT JOIN users a ON t.assigned_to = a.id
+        WHERE t.created_by IN ({placeholders}) AND {status_condition}
+        ORDER BY {order_by}
         """
         if it_admin_ids:
             cursor.execute(query_my_created, it_admin_ids)
@@ -652,16 +652,16 @@ def dashboard():
         
         # Watched by admins (distinct)
         query_watched_admin = f"""
-            SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
-                            c.name as category_name, u.full_name as created_by_name,
-                            CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name,
-                            CASE WHEN t.created_by = ? THEN 'own' ELSE 'team' END as ticket_type
-            FROM tickets t
-            JOIN ticket_watchers tw ON t.id = tw.ticket_id
-            LEFT JOIN categories c ON t.category_id = c.id
-            LEFT JOIN users u ON t.created_by = u.id
-            LEFT JOIN users a ON t.assigned_to = a.id
-            WHERE tw.user_id IN ({placeholders_admins})
+        SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
+        c.name as category_name, u.full_name as created_by_name,
+        CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name,
+        CASE WHEN t.created_by = ? THEN 'own' ELSE 'team' END as ticket_type
+        FROM tickets t
+        JOIN ticket_watchers tw ON t.id = tw.ticket_id
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN users u ON t.created_by = u.id
+        LEFT JOIN users a ON t.assigned_to = a.id
+        WHERE tw.user_id IN ({placeholders_admins})
         """
         params_watched = [user_id] + it_admin_ids
         
@@ -674,16 +674,16 @@ def dashboard():
         cursor.execute(query_watched_admin, params_watched)
         tickets_watched_admin = cursor.fetchall()
 
-        # ===== OPTIMIZED: ONE QUERY FOR ALL ADMINS (N+1 FIX) =====
+        # ==== OPTIMIZED: ONE QUERY FOR ALL ADMINS (N+1 FIX) ====
         if it_admin_ids:
             # Active/all tickets grouped by admin
             if current_filter != 'closed':
                 placeholders_batch = ','.join('?' for _ in it_admin_ids)
                 query_all_admin_tickets = f"""
                 SELECT t.assigned_to, t.id, t.title, t.priority, t.status, 
-                       t.created_at, t.updated_at, t.created_by, t.due_date,
-                       c.name as category_name, u.full_name as created_by_name,
-                       CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+                t.created_at, t.updated_at, t.created_by, t.due_date,
+                c.name as category_name, u.full_name as created_by_name,
+                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
                 FROM tickets t
                 LEFT JOIN categories c ON t.category_id = c.id
                 LEFT JOIN users u ON t.created_by = u.id
@@ -700,15 +700,15 @@ def dashboard():
                         ticket for ticket in all_admin_tickets 
                         if ticket[0] == admin_id
                     ]
-            
+                
             # Closed tickets grouped by admin
             if current_filter == 'closed':
                 placeholders_batch = ','.join('?' for _ in it_admin_ids)
                 query_closed_admin = f"""
                 SELECT t.assigned_to, t.id, t.title, t.priority, t.status, 
-                       t.created_at, t.updated_at, t.created_by, t.due_date,
-                       c.name as category_name, u.full_name as created_by_name,
-                       CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+                t.created_at, t.updated_at, t.created_by, t.due_date,
+                c.name as category_name, u.full_name as created_by_name,
+                CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
                 FROM tickets t
                 LEFT JOIN categories c ON t.category_id = c.id
                 LEFT JOIN users u ON t.created_by = u.id
@@ -724,7 +724,7 @@ def dashboard():
                         ticket for ticket in all_closed 
                         if ticket[0] == admin_id
                     ]
-        # ===== END OPTIMIZED N+1 FIX =====
+            # ==== END OPTIMIZED N+1 FIX ====
 
     # Get all users for Browse filter
     cursor.execute("SELECT id, full_name FROM users ORDER BY full_name")
@@ -797,8 +797,8 @@ def create_ticket():
 
             is_private = 1 if request.form.get('is_private') else 0
             cursor.execute("""
-                INSERT INTO tickets (title, description, priority, category_id, due_date, created_by, assigned_to, is_private, status, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', datetime('now', 'localtime'), datetime('now', 'localtime'))
+            INSERT INTO tickets (title, description, priority, category_id, due_date, created_by, assigned_to, is_private, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', datetime('now', 'localtime'), datetime('now', 'localtime'))
             """, (title, description, priority, category_id, due_date, user_id, assigned_to_db, is_private))
             conn.commit()
 
@@ -820,7 +820,7 @@ def create_ticket():
                         flash(f'Watcher user "{watcher_name}" does not exist.', 'error')
                 conn.commit()
 
-            # ===== FILE UPLOAD WITH SECURITY VALIDATION =====
+            # ==== FILE UPLOAD WITH SECURITY VALIDATION ====
             if 'attachments' in request.files:
                 files = request.files.getlist('attachments')
                 _ensure_upload_dir()
@@ -842,8 +842,8 @@ def create_ticket():
                         INSERT INTO attachments (ticket_id, filename, original_filename, file_path, uploaded_by)
                         VALUES (?, ?, ?, ?, ?)
                         """, (ticket_id, unique_filename, file.filename, relative_path, user_id))
-                conn.commit()
-            # ===== END FILE UPLOAD =====
+                        conn.commit()
+            # ==== END FILE UPLOAD ====
 
             log_activity(user_id, 'TICKET_CREATED', f'Ticket ID: {ticket_id}, Title: {title}')
             notify_on_ticket_created(ticket_id, actor_user_id=user_id)
@@ -908,13 +908,13 @@ def ticket_detail(ticket_id):
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT t.id, t.title, t.description, t.category_id, t.priority, t.status, t.created_by, t.assigned_to, t.is_private, t.created_at, t.updated_at, t.due_date,
-            c.name as category_name, u.full_name as created_by_name, a.full_name as assigned_to_name
-        FROM tickets t
-        LEFT JOIN categories c ON t.category_id = c.id
-        LEFT JOIN users u ON t.created_by = u.id
-        LEFT JOIN users a ON t.assigned_to = a.id
-        WHERE t.id = ?
+    SELECT t.id, t.title, t.description, t.category_id, t.priority, t.status, t.created_by, t.assigned_to, t.is_private, t.created_at, t.updated_at, t.due_date,
+    c.name as category_name, u.full_name as created_by_name, a.full_name as assigned_to_name
+    FROM tickets t
+    LEFT JOIN categories c ON t.category_id = c.id
+    LEFT JOIN users u ON t.created_by = u.id
+    LEFT JOIN users a ON t.assigned_to = a.id
+    WHERE t.id = ?
     """, (ticket_id,))
     ticket = cursor.fetchone()
     if not ticket:
@@ -922,12 +922,22 @@ def ticket_detail(ticket_id):
         conn.close()
         return redirect(url_for('dashboard'))
 
+    # Convert assigned_to fetched from DB to int (if possible) for permission checks
+    assigned_to_raw = ticket[7]
+    if assigned_to_raw is not None:
+        try:
+            assigned_to_val = int(assigned_to_raw)
+        except (ValueError, TypeError):
+            assigned_to_val = None
+    else:
+        assigned_to_val = None
+
     # Check permissions
     if role != 'admin':
         if ticket[8] == 0:
             pass
         else:
-            if ticket[6] != user_id and ticket[7] != user_id:
+            if ticket[6] != user_id and assigned_to_val != user_id:
                 cursor.execute("SELECT 1 FROM ticket_watchers WHERE ticket_id = ? AND user_id = ?", (ticket_id, user_id))
                 if not cursor.fetchone():
                     flash('You do not have permission to view this ticket.', 'danger')
@@ -935,21 +945,22 @@ def ticket_detail(ticket_id):
 
     # Get watchers
     cursor.execute("""
-        SELECT tw.user_id, u.full_name
-        FROM ticket_watchers tw
-        JOIN users u ON tw.user_id = u.id
-        WHERE tw.ticket_id = ?
+    SELECT tw.user_id, u.full_name
+    FROM ticket_watchers tw
+    JOIN users u ON tw.user_id = u.id
+    WHERE tw.ticket_id = ?
     """, (ticket_id,))
     watchers = list(cursor.fetchall())
 
     # === ADD IT ADMINS AS IMPLICIT WATCHERS ===
     # If ticket is assigned to 'IT', show all IT admins as watchers
-    if ticket[11] == 'IT' or ticket[11] is None:  # ticket[11] = assigned_to
+    # NOTE: keep using the raw DB value for 'IT' checks (do not convert), so we inspect assigned_to_raw
+    if assigned_to_raw == 'IT' or assigned_to_raw is None:
         cursor.execute("""
-            SELECT id, full_name
-            FROM users
-            WHERE role = 'admin'
-            ORDER BY full_name
+        SELECT id, full_name
+        FROM users
+        WHERE role = 'admin'
+        ORDER BY full_name
         """)
         it_admins_list = cursor.fetchall()
         
@@ -961,20 +972,20 @@ def ticket_detail(ticket_id):
 
 
     cursor.execute("""
-        SELECT c.id, c.comment, c.created_at, u.full_name
-        FROM comments c
-        JOIN users u ON c.user_id = u.id
-        WHERE c.ticket_id = ?
-        ORDER BY c.created_at DESC
+    SELECT c.id, c.comment, c.created_at, u.full_name
+    FROM comments c
+    JOIN users u ON c.user_id = u.id
+    WHERE c.ticket_id = ?
+    ORDER BY c.created_at DESC
     """, (ticket_id,))
     comments = cursor.fetchall()
 
     cursor.execute("""
-        SELECT a.id, a.filename, a.original_filename, a.created_at, a.uploaded_by, u.full_name
-        FROM attachments a
-        LEFT JOIN users u ON a.uploaded_by = u.id
-        WHERE a.ticket_id = ?
-        ORDER BY a.created_at DESC
+    SELECT a.id, a.filename, a.original_filename, a.created_at, a.uploaded_by, u.full_name
+    FROM attachments a
+    LEFT JOIN users u ON a.uploaded_by = u.id
+    WHERE a.ticket_id = ?
+    ORDER BY a.created_at DESC
     """, (ticket_id,))
     attachments = cursor.fetchall()
 
@@ -989,44 +1000,47 @@ def ticket_detail(ticket_id):
 
     # Get ONLY non-admin users for reassignment dropdown (EXCLUDING admins)
     cursor.execute("""
-        SELECT id, full_name FROM users 
-        WHERE role != 'admin' 
-        ORDER BY full_name
+    SELECT id, full_name FROM users 
+    WHERE role != 'admin' 
+    ORDER BY full_name
     """)
     users = cursor.fetchall()
+
 
 
     
     # Get activity log
     cursor.execute("""
-        SELECT 
-            tal.id,
-            tal.ticket_id,
-            tal.action_type,
-            datetime(tal.created_at, 'localtime') as created_at_local,
-            u.full_name as user_name,
-            tal.old_value,
-            tal.new_value,
-            tal.details
-        FROM ticket_activity_log tal
-        JOIN users u ON tal.user_id = u.id
-        WHERE tal.ticket_id = ?
-        ORDER BY tal.created_at DESC
-        LIMIT 50
+    SELECT 
+    tal.id,
+    tal.ticket_id,
+    tal.action_type,
+    datetime(tal.created_at, 'localtime') as created_at_local,
+    u.full_name as user_name,
+    tal.old_value,
+    tal.new_value,
+    tal.details
+    FROM ticket_activity_log tal
+    JOIN users u ON tal.user_id = u.id
+    WHERE tal.ticket_id = ?
+    ORDER BY tal.created_at DESC
+    LIMIT 50
     """, (ticket_id,))
     activity_log = cursor.fetchall()
 
     can_start_work = False
     can_confirm = False
-    if role == 'admin' and ticket[5] in ['assigned', 'new']:
+    # Allow admin OR the assignee to start work when status is 'assigned' or 'new'
+    if (role == 'admin' or str(user_id) == str(ticket[7])) and ticket[5] in ['assigned', 'new']:
         can_start_work = True
-    if user_id == ticket[6] and ticket[5] == 'awaiting_confirmation':
+    # Allow creator to confirm resolution
+    if str(user_id) == str(ticket[6]) and ticket[5] == 'awaiting_confirmation':
         can_confirm = True
 
     # Proveri da li je trenutni korisnik mute-ovao ovaj tiket
     cursor.execute("""
-        SELECT 1 FROM ticket_muted_users
-        WHERE ticket_id=? AND user_id=?
+    SELECT 1 FROM ticket_muted_users
+    WHERE ticket_id=? AND user_id=?
     """, (ticket_id, user_id))
     is_muted = cursor.fetchone() is not None
     
@@ -1083,11 +1097,11 @@ def admin_panel():
     departments = cursor.fetchall()
 
     cursor.execute("""
-        SELECT u.id, u.username, u.password, u.email, u.full_name, u.role, 
-               u.department_id, u.is_department_head, u.created_at, d.name as department_name
-        FROM users u
-        LEFT JOIN departments d ON u.department_id = d.id
-        ORDER BY u.full_name
+    SELECT u.id, u.username, u.password, u.email, u.full_name, u.role, 
+    u.department_id, u.is_department_head, u.created_at, d.name as department_name
+    FROM users u
+    LEFT JOIN departments d ON u.department_id = d.id
+    ORDER BY u.full_name
     """)
     users = cursor.fetchall()
 
@@ -1097,10 +1111,10 @@ def admin_panel():
     conn.close()
 
     return render_template('admin_panel.html', 
-                         categories=categories, 
-                         departments=departments, 
-                         users=users,
-                         tickets=[None] * ticket_count)
+        categories=categories, 
+        departments=departments, 
+        users=users,
+        tickets=[None] * ticket_count)
 
 @app.route('/add_category', methods=['POST'])
 @admin_required
@@ -1224,9 +1238,9 @@ def reopen_ticket(ticket_id):
     cursor = conn.cursor()
     
     cursor.execute("""
-        SELECT id, status, created_by, assigned_to
-        FROM tickets
-        WHERE id = ?
+    SELECT id, status, created_by, assigned_to
+    FROM tickets
+    WHERE id = ?
     """, (ticket_id,))
     ticket = cursor.fetchone()
     
@@ -1242,8 +1256,17 @@ def reopen_ticket(ticket_id):
         flash('Only closed tickets can be reopened.', 'error')
         return redirect(url_for('ticket_detail', ticket_id=ticket_id))
     
+    # Convert assigned_to from DB to int when possible
+    if assigned_to is not None:
+        try:
+            assigned_to_id = int(assigned_to)
+        except (ValueError, TypeError):
+            assigned_to_id = None
+    else:
+        assigned_to_id = None
+
     can_reopen = False
-    if role == 'admin' or user_id == created_by or user_id == assigned_to:
+    if role == 'admin' or user_id == created_by or user_id == assigned_to_id:
         can_reopen = True
     else:
         cursor.execute("SELECT 1 FROM ticket_watchers WHERE ticket_id = ? AND user_id = ?", (ticket_id, user_id))
@@ -1256,14 +1279,14 @@ def reopen_ticket(ticket_id):
         return redirect(url_for('ticket_detail', ticket_id=ticket_id))
     
     cursor.execute("""
-        UPDATE tickets 
-        SET status = 'in_progress', updated_at = datetime('now', 'localtime')
-        WHERE id = ?
+    UPDATE tickets 
+    SET status = 'in_progress', updated_at = datetime('now', 'localtime')
+    WHERE id = ?
     """, (ticket_id,))
     
     cursor.execute("""
-        INSERT INTO comments (ticket_id, user_id, comment)
-        VALUES (?, ?, ?)
+    INSERT INTO comments (ticket_id, user_id, comment)
+    VALUES (?, ?, ?)
     """, (ticket_id, user_id, '🔄 Ticket reopened'))
     
     conn.commit()
@@ -1286,10 +1309,10 @@ def delete_attachment(attachment_id):
     cursor = conn.cursor()
     
     cursor.execute("""
-        SELECT a.id, a.ticket_id, a.filename, a.file_path, a.uploaded_by, t.created_by
-        FROM attachments a
-        JOIN tickets t ON a.ticket_id = t.id
-        WHERE a.id = ?
+    SELECT a.id, a.ticket_id, a.filename, a.file_path, a.uploaded_by, t.created_by
+    FROM attachments a
+    JOIN tickets t ON a.ticket_id = t.id
+    WHERE a.id = ?
     """, (attachment_id,))
     attachment = cursor.fetchone()
     
@@ -1353,11 +1376,11 @@ def add_comment():
     
     # Add comment
     cursor.execute("""
-        INSERT INTO comments (ticket_id, user_id, comment)
-        VALUES (?, ?, ?)
+    INSERT INTO comments (ticket_id, user_id, comment)
+    VALUES (?, ?, ?)
     """, (ticket_id, user_id, comment))
     
-    # ===== HANDLE PASTED IMAGES =====
+    # ==== HANDLE PASTED IMAGES ====
     pasted_files = []
     for key in request.files:
         if key.startswith('pasted_file_'):
@@ -1378,15 +1401,15 @@ def add_comment():
                 
                 # Add as attachment
                 cursor.execute("""
-                    INSERT INTO attachments (ticket_id, filename, filepath, uploaded_by)
-                    VALUES (?, ?, ?, ?)
+                INSERT INTO attachments (ticket_id, filename, filepath, uploaded_by)
+                VALUES (?, ?, ?, ?)
                 """, (ticket_id, filename, filepath, user_id))
-    
-    # Update ticket timestamp
-    cursor.execute("""
-        UPDATE tickets SET updated_at = datetime('now', 'localtime')
-        WHERE id = ?
-    """, (ticket_id,))
+                
+                # Update ticket timestamp
+                cursor.execute("""
+                UPDATE tickets SET updated_at = datetime('now', 'localtime')
+                WHERE id = ?
+                """, (ticket_id,))
     
     conn.commit()
     conn.close()
@@ -1440,17 +1463,17 @@ def upload_attachment():
             
             # Save to database (ISPRAVLJENO: file_path + original_filename)
             cursor.execute("""
-                INSERT INTO attachments (ticket_id, filename, original_filename, file_path, uploaded_by)
-                VALUES (?, ?, ?, ?, ?)
+            INSERT INTO attachments (ticket_id, filename, original_filename, file_path, uploaded_by)
+            VALUES (?, ?, ?, ?, ?)
             """, (ticket_id, filename, original_filename, filepath, user_id))
             
             uploaded_count += 1
-    
-    # Update ticket timestamp
-    cursor.execute("""
-        UPDATE tickets SET updated_at = datetime('now', 'localtime')
-        WHERE id = ?
-    """, (ticket_id,))
+            
+            # Update ticket timestamp
+            cursor.execute("""
+            UPDATE tickets SET updated_at = datetime('now', 'localtime')
+            WHERE id = ?
+            """, (ticket_id,))
     
     conn.commit()
     conn.close()
@@ -1509,8 +1532,8 @@ def import_users():
                         department_id = cursor.lastrowid
 
                 cursor.execute("""
-                    INSERT INTO users (username, password, full_name, email, department_name, department_id, role)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO users (username, password, full_name, email, department_name, department_id, role)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """, (username, password, full_name, email, department_name, department_id, role))
 
                 imported_count += 1
@@ -1558,8 +1581,8 @@ def add_user_manual():
 
         hashed_password = hashlib.sha256(password.encode()).hexdigest()
         cursor.execute("""
-            INSERT INTO users (username, password, full_name, email, department_id, role, is_department_head)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (username, password, full_name, email, department_id, role, is_department_head)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (username, hashed_password, full_name, email, department_id, role, is_department_head))
 
         conn.commit()
@@ -1579,10 +1602,10 @@ def debug_users():
     cursor = conn.cursor()
     
     cursor.execute("""
-        SELECT u.id, u.username, u.full_name, u.department_id, d.name as dept_name
-        FROM users u
-        LEFT JOIN departments d ON u.department_id = d.id
-        ORDER BY u.id
+    SELECT u.id, u.username, u.full_name, u.department_id, d.name as dept_name
+    FROM users u
+    LEFT JOIN departments d ON u.department_id = d.id
+    ORDER BY u.id
     """)
     users = cursor.fetchall()
     conn.close()
@@ -1637,9 +1660,19 @@ def edit_ticket(ticket_id):
                 return redirect(url_for('dashboard'))
 
             created_by = row[0]
-            assigned_to = row[1]
+            assigned_to_raw = row[1]
 
-            if user_id == created_by or role == 'admin':
+            # Convert assigned_to from DB to int (if possible) for permission checks
+            if assigned_to_raw is not None and assigned_to_raw != 'IT':
+                try:
+                    assigned_to_val = int(assigned_to_raw)
+                except (ValueError, TypeError):
+                    assigned_to_val = None
+            else:
+                assigned_to_val = None
+
+            # Full edit allowed for creator or admin
+            if str(user_id) == str(created_by) or role == 'admin':
                 title = request.form.get('title')
                 description = request.form.get('description')
                 priority = request.form.get('priority')
@@ -1650,6 +1683,7 @@ def edit_ticket(ticket_id):
 
                 if not title or not description or not priority or not category_id:
                     flash('Please fill in all required fields.', 'error')
+                    conn.close()
                     return render_template(
                         'edit_ticket.html',
                         ticket=ticket,
@@ -1660,13 +1694,29 @@ def edit_ticket(ticket_id):
                         form=request.form
                     )
 
+                # Convert assigned_to_form from the form to integer or None (handle 'IT')
+                assigned_to_db = None
+                if assigned_to_form and assigned_to_form.strip() != '':
+                    if assigned_to_form.strip() == 'IT':
+                        assigned_to_db = None
+                    else:
+                        try:
+                            assigned_to_db = int(assigned_to_form)
+                        except ValueError:
+                            flash('Invalid user selected for assignment.', 'error')
+                            conn.close()
+                            return redirect(url_for('edit_ticket', ticket_id=ticket_id))
+                else:
+                    assigned_to_db = None
+
                 is_private = 1 if request.form.get('is_private') else 0
                 cursor.execute("""
                     UPDATE tickets SET title = ?, description = ?, priority = ?, category_id = ?, due_date = ?, assigned_to = ?, is_private = ?, updated_at = datetime('now', 'localtime')
                     WHERE id = ?
-                """, (title, description, priority, category_id, due_date, assigned_to_form, is_private, ticket_id))
+                """, (title, description, priority, category_id, due_date, assigned_to_db, is_private, ticket_id))
                 conn.commit()
 
+                # Replace watchers
                 cursor.execute("DELETE FROM ticket_watchers WHERE ticket_id = ?", (ticket_id,))
                 added_watchers_ids = []
                 if watchers_input:
@@ -1679,8 +1729,8 @@ def edit_ticket(ticket_id):
                             cursor.execute("INSERT OR IGNORE INTO ticket_watchers (ticket_id, user_id) VALUES (?, ?)", (ticket_id, watcher_id))
                             added_watchers_ids.append(watcher_id)
                         else:
-                            flash(f'Watcher user "{watcher_name}" does not exist.', 'error')
-                conn.commit()
+                            flash(f'Watcher user \"{watcher_name}\" does not exist.', 'error')
+                    conn.commit()
 
                 if added_watchers_ids:
                     notify_on_watchers_added(ticket_id, actor_user_id=user_id, watcher_user_ids=added_watchers_ids)
@@ -1689,7 +1739,8 @@ def edit_ticket(ticket_id):
                 conn.close()
                 return redirect(url_for('ticket_detail', ticket_id=ticket_id))
 
-            elif user_id == assigned_to:
+            # Assigned user can only update watchers
+            elif str(user_id) == str(assigned_to_val):
                 watchers_input = request.form.get('watchers', '').strip()
                 cursor.execute("DELETE FROM ticket_watchers WHERE ticket_id = ?", (ticket_id,))
                 added_watchers_ids = []
@@ -1703,8 +1754,8 @@ def edit_ticket(ticket_id):
                             cursor.execute("INSERT OR IGNORE INTO ticket_watchers (ticket_id, user_id) VALUES (?, ?)", (ticket_id, watcher_id))
                             added_watchers_ids.append(watcher_id)
                         else:
-                            flash(f'Watcher user "{watcher_name}" does not exist.', 'error')
-                conn.commit()
+                            flash(f'Watcher user \"{watcher_name}\" does not exist.', 'error')
+                    conn.commit()
 
                 if added_watchers_ids:
                     notify_on_watchers_added(ticket_id, actor_user_id=user_id, watcher_user_ids=added_watchers_ids)
@@ -1718,12 +1769,13 @@ def edit_ticket(ticket_id):
                 conn.close()
                 return redirect(url_for('ticket_detail', ticket_id=ticket_id))
 
+        # GET: show edit form with current watchers
         cursor.execute("""
             SELECT u.full_name FROM users u
             JOIN ticket_watchers tw ON u.id = tw.user_id
             WHERE tw.ticket_id = ?
         """, (ticket_id,))
-        watchers = [row[0] for row in cursor.fetchall()]
+        watchers = [r[0] for r in cursor.fetchall()]
         watchers_str = ', '.join(watchers)
         conn.close()
 
@@ -1738,10 +1790,14 @@ def edit_ticket(ticket_id):
         )
 
     except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
         flash(f'Error updating ticket: {str(e)}', 'error')
         return render_template(
             'edit_ticket.html',
-            ticket=ticket,
+            ticket=ticket if 'ticket' in locals() else None,
             categories=get_categories(),
             users=get_users(),
             it_admins=get_it_admins(),
@@ -1760,16 +1816,16 @@ def manage_department_users(dept_id):
     department = cursor.fetchone()
 
     cursor.execute("""
-        SELECT id, username, full_name, email, role, is_department_head
-        FROM users WHERE department_id = ?
-        ORDER BY full_name
+    SELECT id, username, full_name, email, role, is_department_head
+    FROM users WHERE department_id = ?
+    ORDER BY full_name
     """, (dept_id,))
     dept_users = cursor.fetchall()
 
     cursor.execute("""
-        SELECT id, username, full_name, email, role
-        FROM users WHERE department_id IS NULL
-        ORDER BY full_name
+    SELECT id, username, full_name, email, role
+    FROM users WHERE department_id IS NULL
+    ORDER BY full_name
     """)
     available_users = cursor.fetchall()
 
@@ -1794,8 +1850,8 @@ def add_user_to_department():
 
     try:
         cursor.execute("""
-            UPDATE users SET department_id = ?, is_department_head = ?
-            WHERE id = ?
+        UPDATE users SET department_id = ?, is_department_head = ?
+        WHERE id = ?
         """, (dept_id, is_head, user_id))
         conn.commit()
         flash('User added to department successfully!', 'success')
@@ -1818,8 +1874,8 @@ def remove_user_from_department():
 
     try:
         cursor.execute("""
-            UPDATE users SET department_id = NULL, is_department_head = 0
-            WHERE id = ?
+        UPDATE users SET department_id = NULL, is_department_head = 0
+        WHERE id = ?
         """, (user_id,))
         conn.commit()
         flash('User removed from department!', 'success')
@@ -1871,8 +1927,8 @@ def assign_ticket():
     cursor = conn.cursor()
     
     cursor.execute("""
-        SELECT COUNT(*) FROM ticket_watchers 
-        WHERE ticket_id = ? AND user_id = ?
+    SELECT COUNT(*) FROM ticket_watchers 
+    WHERE ticket_id = ? AND user_id = ?
     """, (ticket_id, current_user_id))
     is_watcher = cursor.fetchone()[0] > 0
     
@@ -1901,9 +1957,9 @@ def assign_ticket():
     new_status = 'assigned' if current_status == 'new' and assigned_to_db is not None else current_status
 
     cursor.execute("""
-        UPDATE tickets
-        SET assigned_to = ?, status = ?
-        WHERE id = ?
+    UPDATE tickets
+    SET assigned_to = ?, status = ?
+    WHERE id = ?
     """, (assigned_to_db, new_status, ticket_id))
 
     conn.commit()
@@ -1922,9 +1978,9 @@ def download_attachment(attachment_id):
     cursor = conn.cursor()
     
     cursor.execute("""
-        SELECT filename, original_filename, file_path 
-        FROM attachments 
-        WHERE id = ?
+    SELECT filename, original_filename, file_path 
+    FROM attachments 
+    WHERE id = ?
     """, (attachment_id,))
     
     attachment = cursor.fetchone()
@@ -1948,10 +2004,10 @@ def edit_user(user_id):
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT u.*, d.name as department_name
-        FROM users u
-        LEFT JOIN departments d ON u.department_id = d.id
-        WHERE u.id = ?
+    SELECT u.*, d.name as department_name
+    FROM users u
+    LEFT JOIN departments d ON u.department_id = d.id
+    WHERE u.id = ?
     """, (user_id,))
     user = cursor.fetchone()
 
@@ -1981,15 +2037,15 @@ def update_user(user_id):
         if password:
             hashed_password = hashlib.sha256(password.encode()).hexdigest()
             cursor.execute("""
-                UPDATE users
-                SET username=?, password=?, full_name=?, email=?, role=?, department_id=?, is_department_head=?
-                WHERE id=?
+            UPDATE users
+            SET username=?, password=?, full_name=?, email=?, role=?, department_id=?, is_department_head=?
+            WHERE id=?
             """, (username, hashed_password, full_name, email, role, department_id, is_department_head, user_id))
         else:
             cursor.execute("""
-                UPDATE users
-                SET username=?, full_name=?, email=?, role=?, department_id=?, is_department_head=?
-                WHERE id=?
+            UPDATE users
+            SET username=?, full_name=?, email=?, role=?, department_id=?, is_department_head=?
+            WHERE id=?
             """, (username, full_name, email, role, department_id, is_department_head, user_id))
 
         conn.commit()
@@ -2014,7 +2070,7 @@ def edit_category(cat_id):
 
         try:
             cursor.execute("""
-                UPDATE categories SET name = ?, description = ? WHERE id = ?
+            UPDATE categories SET name = ?, description = ? WHERE id = ?
             """, (name, description, cat_id))
             conn.commit()
             flash('Category updated successfully!', 'success')
@@ -2047,7 +2103,7 @@ def edit_department(dept_id):
 
         try:
             cursor.execute("""
-                UPDATE departments SET name = ?, description = ? WHERE id = ?
+            UPDATE departments SET name = ?, description = ? WHERE id = ?
             """, (name, description, dept_id))
             conn.commit()
             flash('Department updated successfully!', 'success')
@@ -2081,10 +2137,10 @@ def api_users():
 
     like_query = f"%{query}%"
     cursor.execute("""
-        SELECT full_name FROM users
-        WHERE full_name LIKE ?
-        ORDER BY full_name ASC
-        LIMIT 10
+    SELECT full_name FROM users
+    WHERE full_name LIKE ?
+    ORDER BY full_name ASC
+    LIMIT 10
     """, (like_query,))
     users = [row[0] for row in cursor.fetchall()]
     conn.close()
@@ -2114,34 +2170,41 @@ def reassign_ticket(ticket_id):
         conn.close()
         return redirect(url_for('dashboard'))
 
-    current_assigned_to = row[0]
+    current_assigned_to_raw = row[0]
     created_by = row[1]
+    
+    # Convert current_assigned_to for permission checks (keep raw for 'IT' detection)
+    if current_assigned_to_raw is not None and current_assigned_to_raw != 'IT':
+        try:
+            current_assigned_to = int(current_assigned_to_raw)
+        except (ValueError, TypeError):
+            current_assigned_to = None
+    else:
+        current_assigned_to = None
     
     # Check if watcher
     cursor.execute("""
-        SELECT COUNT(*) FROM ticket_watchers 
-        WHERE ticket_id = ? AND user_id = ?
+    SELECT COUNT(*) FROM ticket_watchers 
+    WHERE ticket_id = ? AND user_id = ?
     """, (ticket_id, user_id))
     is_watcher = cursor.fetchone()[0] > 0
     
     # Permission check
-    if not (role == 'admin' or 
-            user_id == created_by or 
-            current_assigned_to == user_id or 
-            is_watcher):
+    current_assigned_to = row[0]
+    if role != 'admin' and str(current_assigned_to) != str(user_id):
         flash('You do not have permission to reassign this ticket.', 'error')
         conn.close()
         return redirect(url_for('ticket_detail', ticket_id=ticket_id))
 
-    # ===== ASSIGN - Store NULL for 'IT', integer for users =====
+    # ==== ASSIGN - Store NULL for 'IT', integer for users ====
     if new_assigned_to == 'IT':
         # Set to NULL (displays as 'IT' in UI)
         cursor.execute("""
-            UPDATE tickets 
-            SET assigned_to = NULL,
-                status = CASE WHEN status = 'new' THEN 'assigned' ELSE status END,
-                updated_at = datetime('now', 'localtime')
-            WHERE id = ?
+        UPDATE tickets 
+        SET assigned_to = NULL,
+        status = CASE WHEN status = 'new' THEN 'assigned' ELSE status END,
+        updated_at = datetime('now', 'localtime')
+        WHERE id = ?
         """, (ticket_id,))
         assigned_to_for_notification = 'IT'
     else:
@@ -2149,11 +2212,11 @@ def reassign_ticket(ticket_id):
         try:
             assigned_to_int = int(new_assigned_to)
             cursor.execute("""
-                UPDATE tickets 
-                SET assigned_to = ?,
-                    status = CASE WHEN status = 'new' THEN 'assigned' ELSE status END,
-                    updated_at = datetime('now', 'localtime')
-                WHERE id = ?
+            UPDATE tickets 
+            SET assigned_to = ?,
+            status = CASE WHEN status = 'new' THEN 'assigned' ELSE status END,
+            updated_at = datetime('now', 'localtime')
+            WHERE id = ?
             """, (assigned_to_int, ticket_id))
             assigned_to_for_notification = assigned_to_int
         except ValueError:
@@ -2163,18 +2226,22 @@ def reassign_ticket(ticket_id):
 
     # Add as watcher
     cursor.execute("""
-        INSERT OR IGNORE INTO ticket_watchers (ticket_id, user_id)
-        VALUES (?, ?)
+    INSERT OR IGNORE INTO ticket_watchers (ticket_id, user_id)
+    VALUES (?, ?)
     """, (ticket_id, user_id))
 
     # === LOG ACTIVITY - GET ACTUAL NAMES ===
     # Get old assigned name
-    if current_assigned_to == 'IT' or current_assigned_to is None:
+    if current_assigned_to_raw == 'IT' or current_assigned_to_raw is None:
         old_assigned_name = "IT (Unassigned)"
     else:
-        cursor.execute("SELECT full_name FROM users WHERE id = ?", (current_assigned_to,))
-        old_user = cursor.fetchone()
-        old_assigned_name = old_user[0] if old_user else f"User {current_assigned_to}"
+        # Only query if we have a valid integer id
+        if current_assigned_to is not None:
+            cursor.execute("SELECT full_name FROM users WHERE id = ?", (current_assigned_to,))
+            old_user = cursor.fetchone()
+            old_assigned_name = old_user[0] if old_user else f"User {current_assigned_to}"
+        else:
+            old_assigned_name = f"User {current_assigned_to_raw}"
 
     # Get new assigned name
     if new_assigned_to == 'IT':
@@ -2228,8 +2295,8 @@ def bulk_assign_it_tickets():
     try:
         # Get all IT assigned tickets that are not closed
         cursor.execute("""
-            SELECT id FROM tickets 
-            WHERE assigned_to = 'IT' AND status != 'closed'
+        SELECT id FROM tickets 
+        WHERE assigned_to = 'IT' AND status != 'closed'
         """)
         it_tickets = cursor.fetchall()
         
@@ -2243,11 +2310,11 @@ def bulk_assign_it_tickets():
         placeholders = ','.join('?' * len(ticket_ids))
         
         cursor.execute(f"""
-            UPDATE tickets 
-            SET assigned_to = ?, 
-                status = CASE WHEN status = 'new' THEN 'assigned' ELSE status END,
-                updated_at = datetime('now', 'localtime')
-            WHERE id IN ({placeholders})
+        UPDATE tickets 
+        SET assigned_to = ?, 
+        status = CASE WHEN status = 'new' THEN 'assigned' ELSE status END,
+        updated_at = datetime('now', 'localtime')
+        WHERE id IN ({placeholders})
         """, [assign_to_id] + ticket_ids)
         
         conn.commit()
@@ -2264,7 +2331,7 @@ def bulk_assign_it_tickets():
                 notify_on_assigned(ticket_id, actor_user_id=session.get('user_id'), assigned_to_id=assign_to_id)
             except:
                 pass
-    
+        
     except Exception as e:
         flash(f'Error assigning tickets: {str(e)}', 'error')
     finally:
@@ -2294,7 +2361,16 @@ def add_watchers(ticket_id):
         conn.close()
         return redirect(url_for('dashboard'))
 
-    assigned_to = row[0]
+    assigned_to_raw = row[0]
+    # Convert assigned_to for permission comparisons
+    if assigned_to_raw is not None and assigned_to_raw != 'IT':
+        try:
+            assigned_to_val = int(assigned_to_raw)
+        except (ValueError, TypeError):
+            assigned_to_val = None
+    else:
+        assigned_to_val = None
+
     cursor.execute("SELECT created_by FROM tickets WHERE id = ?", (ticket_id,))
     creator_row = cursor.fetchone()
     creator_id = creator_row[0] if creator_row else None
@@ -2302,7 +2378,8 @@ def add_watchers(ticket_id):
     cursor.execute("SELECT 1 FROM ticket_watchers WHERE ticket_id = ? AND user_id = ?", (ticket_id, user_id))
     is_watcher = cursor.fetchone() is not None
 
-    if role != 'admin' and user_id != assigned_to and user_id != creator_id and not is_watcher:
+    assigned_to = row[0]
+    if role != 'admin' and str(user_id) != str(assigned_to):
         flash('You do not have permission to add watchers to this ticket.', 'error')
         conn.close()
         return redirect(url_for('ticket_detail', ticket_id=ticket_id))
@@ -2356,8 +2433,8 @@ def remove_watcher(ticket_id):
         return redirect(url_for('dashboard'))
     
     cursor.execute("""
-        DELETE FROM ticket_watchers 
-        WHERE ticket_id = ? AND user_id = ?
+    DELETE FROM ticket_watchers 
+    WHERE ticket_id = ? AND user_id = ?
     """, (ticket_id, watcher_id_to_remove))
     
     conn.commit()
@@ -2374,8 +2451,8 @@ def log_activity(user_id, action, details=None):
         cursor = conn.cursor()
         ip_address = request.environ.get('HTTP_X_FORWARDED_FOR', request.environ.get('REMOTE_ADDR', 'Unknown'))
         cursor.execute("""
-            INSERT INTO activity_logs (user_id, action, details, ip_address)
-            VALUES (?, ?, ?, ?)
+        INSERT INTO activity_logs (user_id, action, details, ip_address)
+        VALUES (?, ?, ?, ?)
         """, (user_id, action, details, ip_address))
         conn.commit()
         conn.close()
@@ -2392,8 +2469,8 @@ def mute_ticket(ticket_id):
     
     # Dodaj korisnika u muted listu
     cursor.execute("""
-        INSERT OR IGNORE INTO ticket_muted_users (ticket_id, user_id)
-        VALUES (?, ?)
+    INSERT OR IGNORE INTO ticket_muted_users (ticket_id, user_id)
+    VALUES (?, ?)
     """, (ticket_id, user_id))
     
     conn.commit()
@@ -2413,8 +2490,8 @@ def unmute_ticket(ticket_id):
     
     # Ukloni korisnika iz muted liste
     cursor.execute("""
-        DELETE FROM ticket_muted_users
-        WHERE ticket_id=? AND user_id=?
+    DELETE FROM ticket_muted_users
+    WHERE ticket_id=? AND user_id=?
     """, (ticket_id, user_id))
     
     conn.commit()
@@ -2436,11 +2513,11 @@ def view_logs():
     offset = (page - 1) * per_page
 
     cursor.execute("""
-        SELECT al.*, u.full_name 
-        FROM activity_logs al
-        LEFT JOIN users u ON al.user_id = u.id
-        ORDER BY al.created_at DESC
-        LIMIT ? OFFSET ?
+    SELECT al.*, u.full_name 
+    FROM activity_logs al
+    LEFT JOIN users u ON al.user_id = u.id
+    ORDER BY al.created_at DESC
+    LIMIT ? OFFSET ?
     """, (per_page, offset))
     logs = cursor.fetchall()
 
@@ -2469,33 +2546,33 @@ def search():
 
     if role == 'admin':
         cursor.execute("""
-            SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, 
-                            t.created_by, t.assigned_to, t.due_date,
-                            c.name as category_name, u.full_name as created_by_name,
-                            CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
-            FROM tickets t
-            LEFT JOIN categories c ON t.category_id = c.id
-            LEFT JOIN users u ON t.created_by = u.id
-            LEFT JOIN users a ON t.assigned_to = a.id
-            LEFT JOIN comments cm ON t.id = cm.ticket_id
-            WHERE (t.title LIKE ? OR t.description LIKE ? OR cm.comment LIKE ?)
-            ORDER BY t.updated_at DESC
+        SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, 
+        t.created_by, t.assigned_to, t.due_date,
+        c.name as category_name, u.full_name as created_by_name,
+        CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+        FROM tickets t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN users u ON t.created_by = u.id
+        LEFT JOIN users a ON t.assigned_to = a.id
+        LEFT JOIN comments cm ON t.id = cm.ticket_id
+        WHERE (t.title LIKE ? OR t.description LIKE ? OR cm.comment LIKE ?)
+        ORDER BY t.updated_at DESC
         """, (search_term, search_term, search_term))
     else:
         cursor.execute("""
-            SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, 
-                            t.created_by, t.assigned_to, t.due_date,
-                            c.name as category_name, u.full_name as created_by_name,
-                            CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
-            FROM tickets t
-            LEFT JOIN categories c ON t.category_id = c.id
-            LEFT JOIN users u ON t.created_by = u.id
-            LEFT JOIN users a ON t.assigned_to = a.id
-            LEFT JOIN comments cm ON t.id = cm.ticket_id
-            LEFT JOIN ticket_watchers tw ON t.id = tw.ticket_id
-            WHERE (t.title LIKE ? OR t.description LIKE ? OR cm.comment LIKE ?)
-              AND (t.created_by = ? OR t.assigned_to = ? OR tw.user_id = ?)
-            ORDER BY t.updated_at DESC
+        SELECT DISTINCT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, 
+        t.created_by, t.assigned_to, t.due_date,
+        c.name as category_name, u.full_name as created_by_name,
+        CASE WHEN t.assigned_to = 'IT' THEN 'IT' ELSE a.full_name END as assigned_to_name
+        FROM tickets t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN users u ON t.created_by = u.id
+        LEFT JOIN users a ON t.assigned_to = a.id
+        LEFT JOIN comments cm ON t.id = cm.ticket_id
+        LEFT JOIN ticket_watchers tw ON t.id = tw.ticket_id
+        WHERE (t.title LIKE ? OR t.description LIKE ? OR cm.comment LIKE ?)
+        AND (t.created_by = ? OR t.assigned_to = ? OR tw.user_id = ?)
+        ORDER BY t.updated_at DESC
         """, (search_term, search_term, search_term, user_id, user_id, user_id))
 
     tickets = cursor.fetchall()
@@ -2524,8 +2601,8 @@ def save_template():
     cursor = conn.cursor()
 
     cursor.execute("""
-        INSERT INTO ticket_templates (user_id, name, title, description, priority, category_id)
-        VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO ticket_templates (user_id, name, title, description, priority, category_id)
+    VALUES (?, ?, ?, ?, ?, ?)
     """, (user_id, name, title, description, priority, category_id))
 
     conn.commit()
@@ -2545,8 +2622,8 @@ def load_template(template_id):
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT * FROM ticket_templates 
-        WHERE id = ? AND user_id = ?
+    SELECT * FROM ticket_templates 
+    WHERE id = ? AND user_id = ?
     """, (template_id, user_id))
 
     template = cursor.fetchone()
@@ -2582,8 +2659,8 @@ def delete_template(template_id):
     cursor = conn.cursor()
 
     cursor.execute("""
-        DELETE FROM ticket_templates 
-        WHERE id = ? AND user_id = ?
+    DELETE FROM ticket_templates 
+    WHERE id = ? AND user_id = ?
     """, (template_id, user_id))
 
     conn.commit()
@@ -2598,9 +2675,9 @@ def get_user_templates(user_id):
     conn = db.get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT * FROM ticket_templates 
-        WHERE user_id = ? 
-        ORDER BY name
+    SELECT * FROM ticket_templates 
+    WHERE user_id = ? 
+    ORDER BY name
     """, (user_id,))
     templates = cursor.fetchall()
     conn.close()

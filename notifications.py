@@ -18,7 +18,7 @@ def _bool_env(name, default=False):
 
 EXCLUDE_ACTOR = _bool_env("EXCLUDE_ACTOR_FROM_NOTIFICATIONS", True)
 NOTIFY_IT_ADMINS_IF_IT = _bool_env("NOTIFY_IT_ADMINS_WHEN_ASSIGNED_TO_IT", True)
-APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://localhost:5000")
+APP_BASE_URL = os.environ.get("APP_BASE_URL", "https://ticketx.example.com/")
 IT_MAILBOX = os.getenv("IT_MAILBOX", "").strip()
 ENABLE_ASYNC_EMAIL = _bool_env("ENABLE_ASYNC_EMAIL", True)
 
@@ -40,23 +40,65 @@ def async_send(f):
     return wrapper
 
 # ==================== DATABASE HELPERS ====================
-def _get_user_email(cursor, user_id):
-    """Get user email by ID"""
-    if not user_id or isinstance(user_id, str):
+def _normalize_user_id(val):
+    """
+    Normalize assigned_to / user id values from DB:
+      - If integer, return as int
+      - If text 'IT' (case-insensitive) return string 'IT'
+      - If text containing only digits -> return int(digits)
+      - Otherwise return None
+    """
+    if val is None:
         return None
-    cursor.execute("SELECT email FROM users WHERE id=?", (user_id,))
-    row = cursor.fetchone()
-    return row[0] if row and row[0] else None
+    # already int-like
+    if isinstance(val, int):
+        return val
+    # try to coerce to str and strip
+    try:
+        s = str(val).strip()
+    except Exception:
+        return None
+    if not s:
+        return None
+    if s.upper() == "IT":
+        return "IT"
+    if s.isdigit():
+        try:
+            return int(s)
+        except Exception:
+            return None
+    return None
+
+def _get_user_email(cursor, user_id):
+    """Get user email by ID. Accepts int or numeric string."""
+    if not user_id and user_id != 0:
+        return None
+    # normalize numeric strings
+    norm = _normalize_user_id(user_id)
+    if norm is None:
+        return None
+    # Only query DB when we have an integer id
+    if isinstance(norm, int):
+        cursor.execute("SELECT email FROM users WHERE id=?", (norm,))
+        row = cursor.fetchone()
+        return row[0] if row and row[0] else None
+    # norm could be 'IT' (special), return None here
+    return None
 
 def _get_user_name(cursor, user_id):
-    """Get user full name by ID"""
-    if not user_id:
+    """Get user full name by ID. Accepts int or numeric string; returns 'IT' for IT marker."""
+    if not user_id and user_id != 0:
         return None
-    if isinstance(user_id, str):
-        return str(user_id).strip()
-    cursor.execute("SELECT full_name FROM users WHERE id=?", (user_id,))
-    row = cursor.fetchone()
-    return row[0] if row else None
+    norm = _normalize_user_id(user_id)
+    if norm is None:
+        return None
+    if isinstance(norm, int):
+        cursor.execute("SELECT full_name FROM users WHERE id=?", (norm,))
+        row = cursor.fetchone()
+        return row[0] if row else None
+    if isinstance(norm, str) and norm.upper() == "IT":
+        return "IT"
+    return None
 
 def _get_admin_emails(cursor):
     """Get all admin emails"""
@@ -122,9 +164,13 @@ def _build_recipient_reasons(cursor, recipient_email, ticket_id):
 
     user_id = user_row[0]
 
-    if ticket["created_by"] == user_id:
+    # Normalize created_by and assigned_to when comparing
+    created_by_norm = _normalize_user_id(ticket.get("created_by"))
+    if created_by_norm == user_id:
         reasons.append("the ticket creator")
-    if ticket["assigned_to"] == user_id:
+
+    ticket_assigned = _normalize_user_id(ticket.get("assigned_to"))
+    if ticket_assigned == user_id:
         reasons.append("the assigned user")
 
     watchers = _get_watchers_list(cursor, ticket_id)
@@ -180,13 +226,14 @@ def _build_recipients(ticket_id, actor_user_id=None):
         if creator_email:
             recipients.add(creator_email)
         # Add assigned user or IT admins
-        assigned = ticket["assigned_to"]
-        if isinstance(assigned, str) and assigned.strip().upper() == "IT":
+        assigned_raw = ticket.get("assigned_to")
+        assigned = _normalize_user_id(assigned_raw)
+        if isinstance(assigned, str) and assigned.upper() == "IT":
             if IT_MAILBOX:
                 recipients.add(IT_MAILBOX)
             elif NOTIFY_IT_ADMINS_IF_IT:
                 recipients.update(_get_admin_emails(cursor))
-        elif assigned:
+        elif isinstance(assigned, int):
             assigned_email = _get_user_email(cursor, assigned)
             if assigned_email:
                 recipients.add(assigned_email)
@@ -347,7 +394,7 @@ def _build_html_email(ticket, change_label, change_message_html, change_icon='ðŸ
                                                 <td style="padding: 5px 0; font-size: 14px; color: #6c757d;">
                                                     <strong style="color: #2c3e50;">Changed by:</strong>
                                                 </td>
-                                                <td style="padding: 5px 0; font-size: 14px; color: #2c3e50; text-align: right;">{changed_by_name}</td>
+                                                <td style="padding: 5px 0; font-size: 14px; color: #2c75750; text-align: right;">{changed_by_name}</td>
                                             </tr>
                                             <tr>
                                                 <td style="padding: 5px 0; font-size: 14px; color: #6c757d;">
@@ -431,11 +478,15 @@ def _notify(ticket_id, change_label, subject_text, change_message_html, actor_us
                 return
 
             creator_name = _get_user_name(cursor, ticket.get('created_by')) or 'Unknown'
-            assigned = ticket.get('assigned_to')
-            if isinstance(assigned, str) and assigned.strip().upper() == 'IT':
+
+            # Normalize assigned and get assigned_name correctly
+            assigned_raw = ticket.get('assigned_to')
+            assigned_norm = _normalize_user_id(assigned_raw)
+            if isinstance(assigned_norm, str) and assigned_norm.upper() == 'IT':
                 assigned_name = 'IT'
             else:
-                assigned_name = _get_user_name(cursor, assigned) or 'IT'
+                assigned_name = _get_user_name(cursor, assigned_norm) or 'IT'
+
             actor_name = _get_user_name(cursor, actor_user_id) or 'System'
 
             ticket['creator_name'] = creator_name

@@ -18,7 +18,7 @@
         </thead>
         <tbody>
             {% for ticket in tickets %}
-            <tr data-assigned-to="{{ ticket[7] if ticket[7] else '' }}" class="ticket-row">
+            <tr data-assigned-to="{{ ticket[7]|string if ticket[7] else 'IT' }}" class="ticket-row">
                 <!-- Ticket ID -->
                 <td class="text-center">
                     <a href="{{ url_for('ticket_detail', ticket_id=ticket[0]) }}" class="badge bg-primary text-decoration-none">
@@ -196,7 +196,7 @@
                             <li><hr class="dropdown-divider"></li>
                             
                             <!-- Edit (only creator or admin) -->
-                            {% if session.user_id == ticket[6] or session.role == 'admin' %}
+                            {% if (session.user_id|string) == (ticket[6]|string) or session.role == 'admin' %}
                             <li>
                                 <a class="dropdown-item" href="{{ url_for('edit_ticket', ticket_id=ticket[0]) }}">
                                     <i class="bi bi-pencil text-warning"></i> Edit Ticket
@@ -205,7 +205,7 @@
                             {% endif %}
                             
                             <!-- ===== INLINE REASSIGN (NO MODAL) ===== -->
-                            {% if session.role == 'admin' or session.user_id == ticket[7] %}
+                            {% if session.role == 'admin' or (session.user_id|string) == (ticket[7]|string) %}
                             <li><hr class="dropdown-divider"></li>
                             <li class="dropdown-header">
                                 <i class="bi bi-arrow-left-right"></i> <strong>Reassign Ticket</strong>
@@ -219,14 +219,14 @@
                                             {% if it_admins %}
                                             <optgroup label="IT Admins">
                                                 {% for admin in it_admins %}
-                                                <option value="{{ admin[0] }}" {% if ticket[7] == admin[0] %}selected{% endif %}>{{ admin[1] }}</option>
+                                                <option value="{{ admin[0] }}" {% if (ticket[7]|string) == (admin[0]|string) %}selected{% endif %}>{{ admin[1] }}</option>
                                                 {% endfor %}
                                             </optgroup>
                                             {% endif %}
                                             {% if all_users_for_filter %}
                                             <optgroup label="Users">
                                                 {% for user in all_users_for_filter %}
-                                                <option value="{{ user[0] }}" {% if ticket[7] == user[0] %}selected{% endif %}>{{ user[1] }}</option>
+                                                <option value="{{ user[0] }}" {% if (ticket[7]|string) == (user[0]|string) %}selected{% endif %}>{{ user[1] }}</option>
                                                 {% endfor %}
                                             </optgroup>
                                             {% endif %}
@@ -242,7 +242,7 @@
                             <!-- Status Change Options -->
                             <li><hr class="dropdown-divider"></li>
                             
-                            {% set can_change_status = (session.role == 'admin') or (session.user_id == ticket[7]) or (session.user_id == ticket[6]) %}
+                            {% set can_change_status = (session.role == 'admin') or (session.user_id|string) == (ticket[7]|string) or (session.user_id|string) == (ticket[6]|string) %}
                             
                             {% if can_change_status %}
                                 <li class="dropdown-header">
@@ -250,7 +250,7 @@
                                 </li>
                                 
                                 <!-- Start Work -->
-                                {% if ticket[3] in ['new', 'assigned'] and (session.role == 'admin' or session.user_id == ticket[7]) %}
+                                {% if ticket[3] in ['new', 'assigned'] and (session.role == 'admin' or (session.user_id|string) == (ticket[7]|string)) %}
                                 <li>
                                     <form method="POST" action="{{ url_for('update_ticket_status') }}" style="margin: 0;">
                                         <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
@@ -263,7 +263,7 @@
                                 {% endif %}
                                 
                                 <!-- Mark Complete -->
-                                {% if ticket[3] == 'in_progress' and (session.role == 'admin' or session.user_id == ticket[7]) %}
+                                {% if ticket[3] == 'in_progress' and (session.role == 'admin' or (session.user_id|string) == (ticket[7]|string)) %}
                                 <li>
                                     <form method="POST" action="{{ url_for('update_ticket_status') }}" style="margin: 0;">
                                         <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
@@ -276,7 +276,7 @@
                                 {% endif %}
                                 
                                 <!-- Confirm & Close -->
-                                {% if ticket[3] == 'awaiting_confirmation' and session.user_id == ticket[6] %}
+                                {% if ticket[3] == 'awaiting_confirmation' and (session.user_id|string) == (ticket[6]|string) %}
                                 <li>
                                     <form method="POST" action="{{ url_for('update_ticket_status') }}" style="margin: 0;">
                                         <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
@@ -302,7 +302,7 @@
                                 {% endif %}
                                 
                                 <!-- Reopen -->
-                                {% if ticket[3] == 'closed' and (session.role == 'admin' or session.user_id == ticket[6] or session.user_id == ticket[7]) %}
+                                {% if ticket[3] == 'closed' and (session.role == 'admin' or (session.user_id|string) == (ticket[6]|string) or (session.user_id|string) == (ticket[7]|string)) %}
                                 <li>
                                     <form method="POST" action="{{ url_for('reopen_ticket', ticket_id=ticket[0]) }}" style="margin: 0;">
                                         <button type="submit" class="dropdown-item text-info">
@@ -481,9 +481,17 @@ function showAssignITModal(element) {
     box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
     min-width: 200px !important;
 }
+/* ukloni/override prisilni flip */
 tbody tr:last-child .dropdown-menu {
-    transform: translateY(-100%) !important;
-    margin-bottom: 2.5rem !important;
+    transform: none !important;
+    margin-bottom: 0 !important;
+}
+
+/* dropup ponašanje kad ga JS doda */
+.dropdown.dropup .dropdown-menu {
+    top: auto !important;
+    bottom: 100% !important;
+    transform: translateY(-0.35rem) !important;
 }
 .dropdown-item {
     cursor: pointer !important;
@@ -512,3 +520,48 @@ tbody tr:last-child .dropdown-menu {
     padding: 0.35em 0.65em;
 }
 </style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Dodaje .dropup ako dropdown ne stane ispod u viewportu
+  const dropdowns = document.querySelectorAll('.dropdown');
+
+  dropdowns.forEach(dd => {
+    dd.addEventListener('shown.bs.dropdown', function() {
+      const menu = dd.querySelector('.dropdown-menu');
+      if (!menu) return;
+
+      // getBoundingClientRect AFTER it's displayed (Bootstrap adds .show)
+      const rect = menu.getBoundingClientRect();
+      const viewportH = window.innerHeight || document.documentElement.clientHeight;
+
+      // margin sigurnosti (px)
+      const buffer = 8;
+
+      // Ako dno menija prelazi viewport -> otvori gore
+      if (rect.bottom > viewportH - buffer) {
+        dd.classList.add('dropup');
+      } else {
+        dd.classList.remove('dropup');
+      }
+    });
+
+    // obriši klasu kad se zatvori
+    dd.addEventListener('hidden.bs.dropdown', function() {
+      dd.classList.remove('dropup');
+    });
+
+    // Također re-proveravaj pri resize-u ako je meni otvoren
+    window.addEventListener('resize', function() {
+      if (dd.classList.contains('show') || dd.querySelector('.dropdown-menu').classList.contains('show')) {
+        const menu = dd.querySelector('.dropdown-menu');
+        const rect = menu.getBoundingClientRect();
+        const viewportH = window.innerHeight || document.documentElement.clientHeight;
+        const buffer = 8;
+        if (rect.bottom > viewportH - buffer) dd.classList.add('dropup');
+        else dd.classList.remove('dropup');
+      }
+    });
+  });
+});
+</script>
