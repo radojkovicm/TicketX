@@ -33,7 +33,7 @@
                         {{ ticket[14] or 'IT' }}
                     </div>
 
-                    {% if session.user_id == ticket[7] or session.role == 'admin' or session.user_id==ticket[6] or session.user_id in watchers|map(attribute=0)|list %}
+                    {% if (session.user_id|string) == (ticket[7]|string) or session.role == 'admin' or (session.user_id|string)==(ticket[6]|string) or session.user_id in watchers|map(attribute=0)|list %}
                     <div class="mt-3">
                         <form method="POST" action="{{ url_for('reassign_ticket', ticket_id=ticket[0]) }}" class="d-flex align-items-center gap-2">
                             <label class="mb-0">Reassign to:</label>
@@ -76,7 +76,7 @@
                             {% for watcher in watchers %}
                             <span class="badge bg-secondary d-flex align-items-center gap-1">
                                 {{ watcher[1] }}
-                                {% set can_remove = (session.role=='admin' or session.user_id==ticket[6] or session.user_id==watcher[0]) %}
+                                {% set can_remove = (session.role=='admin' or (session.user_id|string)==(ticket[6]|string) or session.user_id==watcher[0]) %}
                                 {% if can_remove %}
                                 <form method="POST" action="{{ url_for('remove_watcher', ticket_id=ticket[0]) }}" class="d-inline m-0">
                                     <input type="hidden" name="watcher_id" value="{{ watcher[0] }}">
@@ -113,7 +113,7 @@
                 </div>
                     {% set is_watcher = watchers|selectattr(0, "equalto", session.user_id)|list|length > 0 %}
 
-                    {% if session.role=='admin' or session.user_id==ticket[6] or is_watcher %}
+                    {% if session.role=='admin' or (session.user_id|string)==(ticket[6]|string) or (session.user_id|string)==(ticket[7]|string) or is_watcher %}
                     <div class="col-md-12 mb-3">
                         <form method="POST" action="{{ url_for('add_watchers', ticket_id=ticket[0]) }}">
                             <div class="position-relative">
@@ -129,7 +129,7 @@
 
                 <!-- STATUS CHANGE & ACTIONS -->
                 <div class="mb-3">
-                    {% set can_change_status = (session.role == 'admin') or (session.user_id == ticket[7]) or (session.user_id == ticket[6]) %}
+                    {% set can_change_status = (session.role == 'admin') or ((session.user_id|string) == (ticket[7]|string)) or ((session.user_id|string) == (ticket[6]|string)) %}
                     
                     {% if can_change_status %}
                     <div class="d-flex align-items-center gap-3 mb-3">
@@ -138,20 +138,20 @@
                             <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
                             <select name="status" class="form-select form-select-sm" style="width: 200px;" onchange="this.form.submit()">
                                 <option value="">Change status...</option>
-                                {% if ticket[5] in ['new', 'assigned'] and (session.role == 'admin' or session.user_id == ticket[7]) %}
+                                {% if ticket[5] in ['new', 'assigned'] and (session.role == 'admin' or (session.user_id|string) == (ticket[7]|string)) %}
                                 <option value="in_progress">▶️ Start Work</option>
                                 {% endif %}
-                                {% if ticket[5] == 'in_progress' and (session.role == 'admin' or session.user_id == ticket[7]) %}
+                                {% if ticket[5] == 'in_progress' and (session.role == 'admin' or (session.user_id|string) == (ticket[7]|string)) %}
                                 <option value="awaiting_confirmation">✅ Mark Complete</option>
                                 {% endif %}
-                                {% if ticket[5] == 'awaiting_confirmation' and session.user_id == ticket[6] %}
+                                {% if ticket[5] == 'awaiting_confirmation' and (session.user_id|string) == (ticket[6]|string) %}
                                 <option value="closed">✔️ Confirm & Close</option>
                                 <option value="in_progress">🔄 Needs More Work</option>
                                 {% endif %}
                                 {% if session.role == 'admin' and ticket[5] != 'closed' %}
                                 <option value="closed">❌ Force Close</option>
                                 {% endif %}
-                                {% if ticket[5] == 'closed' and (session.role == 'admin' or session.user_id == ticket[6] or session.user_id == ticket[7]) %}
+                                {% if ticket[5] == 'closed' and (session.role == 'admin' or (session.user_id|string) == (ticket[6]|string) or (session.user_id|string) == (ticket[7]|string)) %}
                                 <option value="in_progress">🔄 Reopen Ticket</option>
                                 {% endif %}
                             </select>
@@ -177,7 +177,7 @@
 
 
                 <!-- USER ACTIONS -->
-                {% if session.user_id == ticket[6] and ticket[5] != 'closed' %}
+                {% if (session.user_id|string) == (ticket[6]|string) and ticket[5] != 'closed' %}
                 <div class="mb-3">
                     <h6>Your Actions:</h6>
                     <div class="d-flex flex-wrap gap-2">
@@ -202,7 +202,7 @@
 
                 <!-- REOPEN TICKET -->
                 {% if ticket[5] == 'closed' %}
-                {% set can_reopen = (session.role=='admin' or session.user_id==ticket[6] or session.user_id==ticket[7]) %}
+                {% set can_reopen = (session.role=='admin' or (session.user_id|string)==(ticket[6]|string) or (session.user_id|string)==(ticket[7]|string)) %}
                 {% if can_reopen %}
                 <div class="mb-3">
                     <h6>Reopen Ticket:</h6>
@@ -270,7 +270,7 @@
                 <p><strong>Created By:</strong> {{ ticket[13] }}</p>
                 <p><strong>Assigned To:</strong> {{ ticket[14] or 'IT' }}</p>
                 <p><strong>Created:</strong> {{ ticket[9] }}</p>
-                <p><strong>Due Date:</strong> {{ ticket[8] or 'N/A' }}</p>
+                <p><strong>Due Date:</strong> {{ (ticket[11]|string)[:16] if ticket[11] else 'N/A' }}</p>
                 <p><strong>Last Updated:</strong> {{ ticket[10] }}</p>
             </div>
         </div>
@@ -302,7 +302,7 @@
                         </a>
                         <small class="text-muted d-block">{{ attachment[3] }}</small>
                     </div>
-                    {% if session.role=='admin' or session.user_id==ticket[6] %}
+                    {% if session.role=='admin' or (session.user_id|string)==(ticket[6]|string) %}
                     <form method="POST" action="{{ url_for('delete_attachment', attachment_id=attachment[0]) }}" class="d-inline">
                         <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this attachment?')">🗑️</button>
                     </form>
