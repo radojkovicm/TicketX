@@ -952,25 +952,6 @@ def ticket_detail(ticket_id):
     """, (ticket_id,))
     watchers = list(cursor.fetchall())
 
-    # === ADD IT ADMINS AS IMPLICIT WATCHERS ===
-    # If ticket is assigned to 'IT', show all IT admins as watchers
-    # NOTE: keep using the raw DB value for 'IT' checks (do not convert), so we inspect assigned_to_raw
-    if assigned_to_raw == 'IT' or assigned_to_raw is None:
-        cursor.execute("""
-        SELECT id, full_name
-        FROM users
-        WHERE role = 'admin'
-        ORDER BY full_name
-        """)
-        it_admins_list = cursor.fetchall()
-        
-        # Add IT admins to watchers list (if not already there)
-        existing_watcher_ids = [w[0] for w in watchers]
-        for admin in it_admins_list:
-            if admin[0] not in existing_watcher_ids:
-                watchers.append((admin[0], f"{admin[1]} (IT Admin)"))
-
-
     cursor.execute("""
     SELECT c.id, c.comment, c.created_at, u.full_name
     FROM comments c
@@ -1006,8 +987,8 @@ def ticket_detail(ticket_id):
     """)
     users = cursor.fetchall()
 
-
-
+    # Get IT admins for reassignment dropdown
+    it_admins = get_it_admins()
     
     # Get activity log
     cursor.execute("""
@@ -1056,6 +1037,7 @@ def ticket_detail(ticket_id):
         can_confirm=can_confirm,
         users=users,
         all_users=all_users,
+        it_admins=it_admins,          
         activity_log=activity_log,
         is_muted=is_muted
     )

@@ -37,16 +37,23 @@
                     <div class="mt-3">
                         <form method="POST" action="{{ url_for('reassign_ticket', ticket_id=ticket[0]) }}" class="d-flex align-items-center gap-2">
                             <label class="mb-0">Reassign to:</label>
-                            <select name="new_assigned_to" class="form-select form-select-sm" style="width:200px;" required>
-                                <option value="">Select user...</option>
-                                <option value="IT" {% if ticket[11] == 'IT' or not ticket[11] %}selected{% endif %}>IT Team (Unassigned)</option>
-                                {% if users %}
-                                <optgroup label="Users">
-                                    {% for user in users %}
-                                    <option value="{{ user[0] }}" {% if ticket[11] == user[0] %}selected{% endif %}>{{ user[1] }}</option>
-                                    {% endfor %}
-                                </optgroup>
-                                {% endif %}
+                            <select name="new_assigned_to" id="new_assigned_to" class="form-select form-select-sm" style="width: 200px;" required>
+                            <option value="">Select user</option>
+                            {% if session.role == 'admin' and it_admins %}
+                            <optgroup label="IT Admins">
+                                <!-- 'IT' option -> stored as NULL in DB -->
+                                <option value="IT" {% if ticket[7] is none %}selected{% endif %}>IT (Unassigned)</option>
+
+                                {% for admin in it_admins %}
+                                <option value="{{ admin[0] }}" {% if admin[0]|string == ticket[7]|string %}selected{% endif %}>{{ admin[1] }}</option>
+                                {% endfor %}
+                            </optgroup>
+                            {% endif %}
+                            <optgroup label="Users">
+                                {% for user in users %}
+                                <option value="{{ user[0] }}" {% if user[0]|string == ticket[7]|string %}selected{% endif %}>{{ user[1] }}</option>
+                                {% endfor %}
+                            </optgroup>
                             </select>
                             <button type="submit" class="btn btn-sm btn-outline-primary">Reassign</button>
                         </form>
