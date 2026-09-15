@@ -1,4 +1,5 @@
 from database import Database
+from security import verify_password, hash_password, is_legacy_hash
 import hashlib
 import os
 import logging
@@ -35,14 +36,33 @@ class UserModel:
         """
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            hashed_password = hashlib.sha256(password.encode()).hexdigest()
             cursor.execute("""
                 SELECT u.*, d.name as department_name
                 FROM users u
                 LEFT JOIN departments d ON u.department_id = d.id
-                WHERE u.username = ? AND u.password = ?
-            """, (username, hashed_password))
-            return cursor.fetchone()
+                WHERE u.username = ?
+            """, (username,))
+            user = cursor.fetchone()
+
+            if not user:
+                return None
+
+            stored_hash = user[2]  # kolona 'password'
+            if not verify_password(stored_hash, password):
+                return None
+
+            # Migracija: ako je stari nesoljeni SHA-256 hash, re-hesuj ga.
+            if is_legacy_hash(stored_hash):
+                try:
+                    cursor.execute(
+                        "UPDATE users SET password = ? WHERE id = ?",
+                        (hash_password(password), user[0])
+                    )
+                    conn.commit()
+                except Exception as e:
+                    logging.warning(f"Password rehash failed for user {user[0]}: {e}")
+
+            return user
     
     def get_user_by_id(self, user_id):
         """Get user details by ID"""

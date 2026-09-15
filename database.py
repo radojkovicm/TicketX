@@ -63,48 +63,57 @@ class Database:
     @classmethod
     def _get_from_pool(cls, db_path):
         """
-        Get connection from pool or create new one.
-        
+        Create a new connection.
+
+        Napomena: raniji "pool" je bio nefunkcionalan jer se svuda u kodu
+        pozivao conn.close() (fizicko zatvaranje), pa se pool nikad nije
+        koristio. Svaka konekcija se sada otvara po potrebi; konkurentnost
+        obezbedjuje WAL rezim. Ako zatreba pravi pool, treba uvesti
+        eksplicitan release() umesto close() na svim pozivima.
+
         Args:
             db_path: Path to database file
-            
+
         Returns:
             sqlite3.Connection: Database connection
         """
-        with cls._lock:
-            if cls._pool:
-                return cls._pool.pop()
-            else:
-                return cls._create_connection(db_path)
-    
+        return cls._create_connection(db_path)
+
     @classmethod
     def _return_to_pool(cls, conn):
         """
-        Return connection to pool or close if pool is full.
-        
+        Close a connection (pool je uklonjen, vidi _get_from_pool).
+
         Args:
-            conn: Connection to return
+            conn: Connection to close
         """
-        with cls._lock:
-            if len(cls._pool) < cls._pool_size:
-                cls._pool.append(conn)
-            else:
-                try:
-                    conn.close()
-                except:
-                    pass
+        try:
+            conn.close()
+        except Exception:
+            pass
     
     def get_connection(self):
         """
-        Get a database connection from the pool.
-        
+        Get a database connection.
+
+        Ako se poziva unutar Flask zahteva, konekcija se registruje da bi je
+        teardown handler sigurno zatvorio na kraju zahteva (i kod izuzetka /
+        ranog return-a). Rucni conn.close() i dalje radi (dvostruko zatvaranje
+        je bezopasno).
+
         Returns:
             sqlite3.Connection: Database connection
-            
-        Note:
-            Always close connections after use to return them to pool.
         """
-        return self._get_from_pool(self.db_path)
+        conn = self._get_from_pool(self.db_path)
+        try:
+            from flask import g, has_app_context
+            if has_app_context():
+                if not hasattr(g, '_db_connections'):
+                    g._db_connections = []
+                g._db_connections.append(conn)
+        except Exception:
+            pass
+        return conn
     
     @contextmanager
     def get_connection_context(self):

@@ -4,6 +4,7 @@ from werkzeug.utils import secure_filename
 from models import UserModel, TicketModel, CategoryModel
 from auth import login_required, admin_required, get_redirect_target
 from database import Database
+from security import hash_password, verify_password
 import sys
 import sqlite3
 import pandas as pd
@@ -22,6 +23,26 @@ log.setLevel(logging.ERROR)
 app = Flask(__name__)
 
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-insecure-only-change-me")
+
+# CSRF zastita za sve POST/PUT/PATCH/DELETE zahteve.
+# Token se automatski ubacuje u forme i fetch pozive iz base.html.
+from flask_wtf.csrf import CSRFProtect
+csrf = CSRFProtect(app)
+
+
+@app.teardown_appcontext
+def _close_db_connections(exc):
+    """Sigurno zatvori sve DB konekcije otvorene tokom zahteva.
+
+    Mreza zastite protiv curenja konekcija: radi cak i kada ruta zaboravi
+    conn.close() ili kada dodje do izuzetka usred rute.
+    """
+    from flask import g
+    for conn in getattr(g, '_db_connections', []):
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 IS_HTTPS = (os.getenv("IS_HTTPS", "false").strip().lower() == "true")
 
@@ -152,7 +173,7 @@ def ensure_initial_admin():
             return
         
         # Create initial admin
-        hashed_password = hashlib.sha256(admin_password.encode()).hexdigest()
+        hashed_password = hash_password(admin_password)
         
         try:
             cursor.execute("""
@@ -166,13 +187,16 @@ def ensure_initial_admin():
             logging.error(f"❌ Error creating initial admin: {str(e)}")
     else:
         logging.info(f"✅ Admin user(s) already exist ({admin_count} found). Skipping initial setup.")
-    
-    try:
-        ensure_initial_admin()
-    except Exception as e:
-        logging.error(f"❌ Error during initial admin setup: {str(e)}")
-    
+
     conn.close()
+
+
+# Pokreni proveru/kreiranje inicijalnog admina jednom, pri startu aplikacije
+# (radi i pod WSGI/IIS, ne samo pri direktnom pokretanju).
+try:
+    ensure_initial_admin()
+except Exception as e:
+    logging.error(f"❌ Error during initial admin setup: {str(e)}")
 
 @app.route('/')
 def index():
@@ -301,7 +325,7 @@ def my_profile():
                 return render_template('my_profile.html',
                     user=user,
                     departments=departments)
-            hashed_password = hashlib.sha256(new_password.encode()).hexdigest()
+            hashed_password = hash_password(new_password)
             update_password = True
 
         if update_password:
@@ -1497,7 +1521,7 @@ def import_users():
         for index, row in df.iterrows():
             try:
                 username = row['username']
-                password = hashlib.sha256(str(row['password']).encode()).hexdigest()
+                password = hash_password(str(row['password']))
                 full_name = row['full_name']
                 email = row.get('email', '')
                 department_name = row.get('department_name', '')
@@ -1514,9 +1538,9 @@ def import_users():
                         department_id = cursor.lastrowid
 
                 cursor.execute("""
-                INSERT INTO users (username, password, full_name, email, department_name, department_id, role)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (username, password, full_name, email, department_name, department_id, role))
+                INSERT INTO users (username, password, full_name, email, department_id, role)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """, (username, password, full_name, email, department_id, role))
 
                 imported_count += 1
             except Exception as e:
@@ -1561,7 +1585,7 @@ def add_user_manual():
             conn.close()
             return redirect(url_for('admin_panel'))
 
-        hashed_password = hashlib.sha256(password.encode()).hexdigest()
+        hashed_password = hash_password(password)
         cursor.execute("""
         INSERT INTO users (username, password, full_name, email, department_id, role, is_department_head)
         VALUES (?, ?, ?, ?, ?, ?, ?)
