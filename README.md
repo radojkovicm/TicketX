@@ -1,8 +1,44 @@
 # TicketX - Ticket Management System
 
+> **TicketX** is a self-hosted helpdesk / ticketing web app for internal IT and cross-department support. Employees open tickets, staff assign, comment on, and resolve them, and everyone stays in sync through email notifications — with role-based access, watchers, attachments, and a full audit trail. Built with Python/Flask and SQLite, deployable on IIS.
+
 ## Overview
 
 **TicketX** is a comprehensive, enterprise-grade ticket management system built with Python and Flask. The application is designed to handle ticket creation, assignment, tracking, and resolution across multiple departments and users. The system has been deployed on IIS (Internet Information Services) and includes advanced features such as email notifications, user management, role-based access control, and audit logging.
+
+---
+
+## Getting Started
+
+```bash
+# 1. Clone and enter the project
+git clone https://github.com/radojkovicm/TicketX.git
+cd TicketX
+
+# 2. Create and activate a virtual environment
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+# source .venv/bin/activate     # Linux/macOS
+
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Configure environment
+copy .env.example .env          # Windows  (cp on Linux/macOS)
+# then edit .env: set FLASK_SECRET_KEY, SMTP_* and INITIAL_ADMIN_* values
+
+# 5. Run
+python app.py                   # http://localhost:5000
+```
+
+On first run, an initial admin is created from the `INITIAL_ADMIN_*` values in
+`.env`. **Log in and change that password immediately**, then set
+`DISABLE_INITIAL_ADMIN_CREATION=true`. The SQLite database is created
+automatically on startup.
+
+> **Note:** `.env`, `*.db`, and the `uploads/` folders are git-ignored — never
+> commit real secrets or production data. Generate a secret key with
+> `python -c "import secrets; print(secrets.token_hex(32))"`.
 
 ---
 
@@ -10,6 +46,7 @@
 
 ### Backend Framework & Core
 - **Flask** (2.3.3) - Lightweight Python web framework for routing and request handling
+- **Flask-WTF** (1.2.1) - CSRF protection for all state-changing requests
 - **Werkzeug** (2.3.7) - WSGI utility library for secure password hashing and file uploads
 - **Jinja2** (3.1.2) - Templating engine for dynamic HTML rendering
 - **MarkupSafe** (3.0.2) - Safe string marking for template rendering
@@ -17,8 +54,8 @@
 ### Database
 - **SQLite** (built-in) - Lightweight relational database with:
   - WAL (Write-Ahead Logging) mode for improved concurrency
-  - Connection pooling (up to 20 concurrent connections)
-  - Support for ~200 concurrent users with optimized PRAGMA settings
+  - Per-request connections closed automatically via a Flask teardown handler
+  - Optimized PRAGMA settings (64MB cache, foreign keys enabled)
   - Automatic schema initialization and migrations
 
 ### Data Processing & Analysis
@@ -65,8 +102,9 @@
 TicketX/
 ├── app.py                          # Main Flask application and route handlers
 ├── models.py                       # Database models (User, Ticket, Category)
-├── database.py                     # Database connection pooling and schema
+├── database.py                     # Database connections and schema initialization
 ├── auth.py                         # Authentication decorators and session management
+├── security.py                     # Password hashing/verification helpers
 ├── notifications.py                # Email notification system
 ├── mailer.py                       # SMTP email sending logic
 ├── sql.py                          # SQL utility functions
@@ -77,7 +115,8 @@ TicketX/
 ├── inspect_ticket.py               # Ticket inspection tools
 ├── run_notify.py                   # Notification scheduling/execution
 ├── requirements.txt                # Python dependencies
-├── requirements_new.txt            # Updated dependencies list
+├── .env.example                    # Environment config template (copy to .env)
+├── .gitignore                      # Excludes .env, *.db, uploads, caches
 │
 ├── templates/                      # Jinja2 HTML templates
 │   ├── base.html                   # Base template with navigation
@@ -118,7 +157,7 @@ TicketX/
 |--------|------|---------|
 | id | INTEGER PRIMARY KEY | Unique user identifier |
 | username | TEXT UNIQUE | Login username |
-| password | TEXT | SHA-256 hashed password |
+| password | TEXT | Password hash (werkzeug PBKDF2; legacy SHA-256 auto-migrated on login) |
 | email | TEXT | User email for notifications |
 | full_name | TEXT | User's display name |
 | role | TEXT | 'admin' or 'user' role |
@@ -387,7 +426,11 @@ TicketX/
 ## Key Features & Implementation Details
 
 ### 1. Authentication & Authorization
-- **SHA-256 Password Hashing**: Passwords are hashed before storage
+- **Secure Password Hashing**: werkzeug PBKDF2-SHA256 (salted). Legacy unsalted
+  SHA-256 hashes are still accepted and automatically re-hashed on next login,
+  so existing accounts keep working without a forced reset.
+- **CSRF Protection**: Flask-WTF `CSRFProtect` guards every POST/PUT/PATCH/DELETE;
+  tokens are injected automatically into all forms and `fetch()` calls.
 - **Role-Based Access Control (RBAC)**:
   - `admin` - Full system access
   - `user` - Standard user permissions
@@ -433,7 +476,7 @@ TicketX/
   - Files deleted with ticket (CASCADE)
 
 ### 4. Database Optimization
-- **Connection Pooling**: 20-connection pool for high concurrency
+- **Per-request Connections**: One SQLite connection per request, auto-closed on teardown
 - **WAL Mode**: Write-Ahead Logging for better concurrent access
 - **Query Optimization**:
   - Composite indices on frequently queried columns
@@ -531,27 +574,36 @@ The application is deployed on IIS using **wfastcgi** module:
 ## Security Features
 
 1. **Password Security**:
-   - SHA-256 hashing
+   - werkzeug PBKDF2-SHA256 (salted) hashing
+   - Backward-compatible migration of legacy SHA-256 hashes on login
    - No plaintext storage
 
-2. **File Upload Security**:
+2. **CSRF Protection**:
+   - Flask-WTF `CSRFProtect` on all state-changing requests
+   - Tokens auto-injected into forms and AJAX/`fetch` calls
+
+3. **File Upload Security**:
    - Whitelist validation (extension + MIME type)
    - Size limits (10MB max)
    - Filename obfuscation
    - Content-type verification
 
-3. **Session Security**:
+4. **Session Security**:
    - HttpOnly cookies
    - SameSite attributes
    - Configurable timeout
    - HTTPS enforcement option
 
-4. **SQL Injection Prevention**:
+5. **SQL Injection Prevention**:
    - Parameterized queries throughout
    - Status filter whitelisting in models
    - SQLite context managers for safe connection handling
 
-5. **Access Control**:
+6. **Secrets Management**:
+   - `.env` (and databases/uploads) excluded from version control via `.gitignore`
+   - `.env.example` template provided for configuration
+
+7. **Access Control**:
    - Role-based decorators (@login_required, @admin_required)
    - Department-head authorization
    - Private ticket support
@@ -560,7 +612,7 @@ The application is deployed on IIS using **wfastcgi** module:
 
 ## Performance Considerations
 
-- **Database Connection Pooling**: 20 active connections supporting ~200 concurrent users
+- **Per-request connections + WAL**: Each request gets its own SQLite connection, closed automatically on teardown; WAL mode allows concurrent readers/writer
 - **Async Email**: Background thread processing prevents request blocking
 - **Caching**: SQLite PRAGMA cache_size set to 64MB
 - **Indices**: 15+ optimized indices on frequently queried columns
@@ -610,7 +662,7 @@ The application is deployed on IIS using **wfastcgi** module:
 - Multi-department support
 - Email notification system
 - File attachment handling
-- Optimized SQLite with connection pooling
+- Optimized SQLite (WAL mode, per-request connections)
 - Secure session management
 - IIS deployment capability
 
