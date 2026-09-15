@@ -3,7 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}Ticket System{% endblock %}</title>
+    <script>
+    // --- CSRF: automatski dodaj token u sve POST forme i fetch pozive ---
+    (function () {
+        var token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+        // 1) Ubaci hidden csrf_token polje u svaku formu koja menja stanje
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('form').forEach(function (form) {
+                var method = (form.getAttribute('method') || 'get').toUpperCase();
+                if (method === 'GET') return;
+                if (form.querySelector('input[name="csrf_token"]')) return;
+                var input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'csrf_token';
+                input.value = token;
+                form.appendChild(input);
+            });
+        });
+
+        // 2) Dodaj X-CSRFToken header na sve same-origin fetch pozive koji menjaju stanje
+        var origFetch = window.fetch;
+        window.fetch = function (input, init) {
+            init = init || {};
+            var method = (init.method || (typeof input !== 'string' && input.method) || 'GET').toUpperCase();
+            if (['POST', 'PUT', 'PATCH', 'DELETE'].indexOf(method) !== -1) {
+                var headers = new Headers(init.headers || {});
+                if (!headers.has('X-CSRFToken')) headers.set('X-CSRFToken', token);
+                init.headers = headers;
+            }
+            return origFetch(input, init);
+        };
+    })();
+    </script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Dodaj ovo u <head> sekciju base.html, posle Bootstrap CSS linka -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">

@@ -1,0 +1,33 @@
+# Secrets & config
+.env
+
+# Databases (sadrže podatke korisnika i hešove lozinki)
+*.db
+*.db-wal
+*.db-shm
+
+# User uploads
+uploads/
+static/uploads/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Logs
+logs/
+*.log
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Ephemeral / scratch fajlovi
+requirements_new.txt
+old-web-config.txt
