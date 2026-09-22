@@ -1,32 +1,38 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file
+import logging
 import os
-from werkzeug.utils import secure_filename
-from models import UserModel, TicketModel, CategoryModel
-from auth import login_required, admin_required, get_redirect_target
-from database import Database
-from security import hash_password, verify_password
-import sys
-import sqlite3
-import pandas as pd
-import hashlib
-from datetime import datetime, timedelta
+import re
+import threading
 import time
+import uuid
+from datetime import datetime, timedelta
+from pathlib import Path
 
 from dotenv import load_dotenv
+from flask import Flask, abort, flash, jsonify, redirect, render_template, request, send_file, session, url_for
+from flask_wtf.csrf import CSRFProtect
+from openpyxl import load_workbook
+from werkzeug.exceptions import HTTPException
+
 load_dotenv()
 
-import logging
+from auth import admin_required, get_redirect_target, login_required  # noqa: E402
+from database import Database  # noqa: E402
+from models import CategoryModel, TicketModel, UserModel  # noqa: E402
+from security import hash_password  # noqa: E402
+
 logging.basicConfig(level=logging.INFO)
-log = logging.getLogger('werkzeug')
-log.setLevel(logging.ERROR)
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-insecure-only-change-me")
+app.secret_key = os.getenv("FLASK_SECRET_KEY")
+if not app.secret_key or app.secret_key == "change-me-generate-a-random-64-hex-string":
+    raise RuntimeError(
+        "FLASK_SECRET_KEY is required. Copy .env.example to .env and generate a random key."
+    )
 
-# CSRF zastita za sve POST/PUT/PATCH/DELETE zahteve.
-# Token se automatski ubacuje u forme i fetch pozive iz base.html.
-from flask_wtf.csrf import CSRFProtect
+# CSRF protection for every state-changing request.
 csrf = CSRFProtect(app)
 
 
@@ -46,7 +52,12 @@ def _close_db_connections(exc):
 
 IS_HTTPS = (os.getenv("IS_HTTPS", "false").strip().lower() == "true")
 
-app.config['UPLOAD_FOLDER'] = 'static/uploads'
+APP_ROOT = Path(__file__).resolve().parent
+upload_setting = os.getenv("UPLOAD_FOLDER", "uploads")
+upload_path = Path(upload_setting)
+if not upload_path.is_absolute():
+    upload_path = APP_ROOT / upload_path
+app.config['UPLOAD_FOLDER'] = str(upload_path.resolve())
 
 # ==== FILE UPLOAD SECURITY ====
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'txt', 'xlsx', 'xls', 'zip', 'rar'}
@@ -79,8 +90,41 @@ def log_ticket_activity(ticket_id, user_id, action_type, old_value=None, new_val
     finally:
         conn.close()
 
+VALID_PRIORITIES = {'low', 'medium', 'high'}
+VALID_STATUSES = {'new', 'assigned', 'in_progress', 'awaiting_confirmation', 'closed'}
+LOGIN_WINDOW_SECONDS = 15 * 60
+LOGIN_MAX_FAILURES = 5
+_login_failures = {}
+_login_failures_lock = threading.Lock()
+
+
+def _login_key(username):
+    return (request.remote_addr or 'unknown', username.strip().lower())
+
+
+def _is_login_rate_limited(key):
+    now = time.monotonic()
+    with _login_failures_lock:
+        recent = [stamp for stamp in _login_failures.get(key, []) if now - stamp < LOGIN_WINDOW_SECONDS]
+        if recent:
+            _login_failures[key] = recent
+        else:
+            _login_failures.pop(key, None)
+        return len(recent) >= LOGIN_MAX_FAILURES
+
+
+def _record_login_failure(key):
+    with _login_failures_lock:
+        _login_failures.setdefault(key, []).append(time.monotonic())
+
+
+def _clear_login_failures(key):
+    with _login_failures_lock:
+        _login_failures.pop(key, None)
+
+
 def allowed_file(filename, mimetype):
-    """Validate file extension and MIME type"""
+    """Validate an attachment using a conservative extension/MIME allowlist."""
     if '.' not in filename:
         return False
     ext = filename.rsplit('.', 1)[1].lower()
@@ -88,22 +132,158 @@ def allowed_file(filename, mimetype):
 # ==== END FILE UPLOAD SECURITY ====
 
 def get_upload_path():
-    year_month = datetime.now().strftime('%Y-%m')  # 2025-11 (jedan folder)
-    upload_path = os.path.join('static', 'uploads', year_month)
-    os.makedirs(upload_path, exist_ok=True)
-    return upload_path
+    """Return the private monthly attachment directory."""
+    monthly_path = Path(app.config['UPLOAD_FOLDER']) / datetime.now().strftime('%Y-%m')
+    monthly_path.mkdir(parents=True, exist_ok=True)
+    return monthly_path
+
+
+def _normalize_user_id(value):
+    if value in (None, '', 'IT'):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _get_ticket_access(cursor, ticket_id, user_id=None):
+    """Load the minimum ticket data required for authorization decisions."""
+    cursor.execute(
+        """
+        SELECT t.id, t.created_by, t.assigned_to, t.is_private, t.status,
+               EXISTS(
+                   SELECT 1 FROM ticket_watchers tw
+                   WHERE tw.ticket_id = t.id AND tw.user_id = ?
+               ) AS is_watcher
+        FROM tickets t
+        WHERE t.id = ?
+        """,
+        (user_id, ticket_id),
+    )
+    row = cursor.fetchone()
+    if not row:
+        return None
+    return {
+        'id': row[0],
+        'created_by': row[1],
+        'assigned_to': _normalize_user_id(row[2]),
+        'is_private': bool(row[3]),
+        'status': row[4],
+        'is_watcher': bool(row[5]),
+    }
+
+
+def _can_view_ticket(access, user_id, role):
+    if not access:
+        return False
+    return (
+        role == 'admin'
+        or not access['is_private']
+        or access['created_by'] == user_id
+        or access['assigned_to'] == user_id
+        or access['is_watcher']
+    )
+
+
+def _can_manage_ticket(access, user_id, role):
+    if not access:
+        return False
+    return (
+        role == 'admin'
+        or access['created_by'] == user_id
+        or access['assigned_to'] == user_id
+    )
+
+
+def _can_change_status(access, user_id, role, new_status):
+    """Enforce the workflow even when a request bypasses the UI."""
+    if not access or new_status not in VALID_STATUSES:
+        return False
+    if role == 'admin':
+        return True
+    current = access['status']
+    if access['assigned_to'] == user_id:
+        return (current, new_status) in {
+            ('new', 'in_progress'),
+            ('assigned', 'in_progress'),
+            ('in_progress', 'awaiting_confirmation'),
+        }
+    if access['created_by'] == user_id:
+        return (current, new_status) == ('awaiting_confirmation', 'closed')
+    return False
+
+
+def _save_attachment(file, ticket_id, user_id, cursor):
+    """Validate, privately store and register one attachment."""
+    if not file or not file.filename:
+        return False
+    if not allowed_file(file.filename, file.content_type):
+        raise ValueError(f"File type not allowed: {file.filename}")
+
+    suffix = Path(file.filename).suffix.lower()
+    stored_name = f"{ticket_id}_{uuid.uuid4().hex}{suffix}"
+    destination = get_upload_path() / stored_name
+    file.save(destination)
+    try:
+        stored_path = destination.relative_to(APP_ROOT).as_posix()
+    except ValueError:
+        stored_path = str(destination)
+    cursor.execute(
+        """
+        INSERT INTO attachments
+            (ticket_id, filename, original_filename, file_path, uploaded_by)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (ticket_id, stored_name, Path(file.filename).name, stored_path, user_id),
+    )
+    return True
+
+
+def _resolve_attachment_path(stored_path):
+    """Resolve current and legacy attachment paths without allowing traversal."""
+    path = Path(stored_path)
+    allowed_roots = [Path(app.config['UPLOAD_FOLDER']).resolve(), (APP_ROOT / 'static' / 'uploads').resolve()]
+    candidates = [path.resolve()] if path.is_absolute() else [(APP_ROOT / path).resolve()]
+    if not path.is_absolute() and path.parts and path.parts[0].lower() == 'uploads':
+        candidates.append((APP_ROOT / 'static' / path).resolve())
+
+    safe_candidates = [
+        candidate
+        for candidate in candidates
+        if any(candidate == root or root in candidate.parents for root in allowed_roots)
+    ]
+    return next((candidate for candidate in safe_candidates if candidate.exists()), safe_candidates[0] if safe_candidates else None)
 
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB
 
 app.config.update(
     SESSION_COOKIE_SECURE=IS_HTTPS,
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE=("None" if IS_HTTPS else "Lax"),
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_NAME="ticketx_session",
     PERMANENT_SESSION_LIFETIME=timedelta(hours=1),
     SESSION_REFRESH_EACH_REQUEST=True,
+    MAX_FORM_MEMORY_SIZE=12 * 1024 * 1024,
 )
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+@app.after_request
+def add_security_headers(response):
+    response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    response.headers.setdefault('X-Frame-Options', 'DENY')
+    response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    response.headers.setdefault(
+        'Content-Security-Policy',
+        "default-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' blob: data:; "
+        "font-src 'self' https://cdn.jsdelivr.net; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+    )
+    if IS_HTTPS:
+        response.headers.setdefault('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+    if session.get('user_id'):
+        response.headers.setdefault('Cache-Control', 'no-store, private')
+    return response
 
 from notifications import (
     notify_on_ticket_created,
@@ -120,8 +300,22 @@ user_model = UserModel()
 ticket_model = TicketModel()
 category_model = CategoryModel()
 
-# ==== JINJA2 GLOBAL FUNCTIONS ====
-from datetime import datetime
+
+@app.before_request
+def refresh_authenticated_user():
+    """Keep authorization data in the signed session synchronized with the database."""
+    user_id = session.get('user_id')
+    if not user_id or request.endpoint == 'static':
+        return
+    user = user_model.get_user_by_id(user_id)
+    if not user:
+        session.clear()
+        return
+    session['username'] = user[1]
+    session['full_name'] = user[4]
+    session['role'] = user[5]
+    session['department_id'] = user[6]
+    session['is_department_head'] = user[7]
 
 @app.context_processor
 def inject_now():
@@ -134,7 +328,7 @@ def inject_now():
 
 def _ensure_upload_dir():
     try:
-        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        Path(app.config['UPLOAD_FOLDER']).mkdir(parents=True, exist_ok=True)
     except Exception:
         pass
 
@@ -155,20 +349,28 @@ def ensure_initial_admin():
     conn = db.get_connection()
     cursor = conn.cursor()
     
-    # Check if any admin exists
+    # Check whether an administrator already exists.
     cursor.execute("SELECT COUNT(*) FROM users WHERE role = 'admin'")
     admin_count = cursor.fetchone()[0]
     
     if admin_count == 0:
-        # No admin exists, create one from .env
+        # No administrator exists; bootstrap one from local configuration.
         admin_username = os.getenv('INITIAL_ADMIN_USERNAME')
         admin_password = os.getenv('INITIAL_ADMIN_PASSWORD')
         admin_fullname = os.getenv('INITIAL_ADMIN_FULLNAME', 'System Administrator')
         admin_email = os.getenv('INITIAL_ADMIN_EMAIL', '')
         
-        if not admin_username or not admin_password:
-            logging.warning("⚠️  No admin exists and INITIAL_ADMIN_USERNAME/PASSWORD not set in .env!")
-            logging.warning("⚠️  Please add admin credentials to .env file and restart.")
+        password_is_placeholder = (
+            not admin_password
+            or admin_password == 'replace-with-a-strong-unique-password'
+            or admin_password.lower().startswith('changeme')
+            or len(admin_password) < 12
+        )
+        if not admin_username or password_is_placeholder:
+            logger.warning(
+                "No administrator exists. Set INITIAL_ADMIN_USERNAME and a unique "
+                "INITIAL_ADMIN_PASSWORD of at least 12 characters."
+            )
             conn.close()
             return
         
@@ -181,22 +383,21 @@ def ensure_initial_admin():
             VALUES (?, ?, ?, ?, 'admin', NULL, 0)
             """, (admin_username, hashed_password, admin_fullname, admin_email))
             conn.commit()
-            logging.info(f"✅ Initial admin user created: {admin_username}")
-            logging.info(f"⚠️  IMPORTANT: Change the admin password immediately after first login!")
+            logger.info("Initial administrator created: %s", admin_username)
+            logger.warning("Change the initial administrator password after first login.")
         except Exception as e:
-            logging.error(f"❌ Error creating initial admin: {str(e)}")
+            logger.exception("Could not create the initial administrator: %s", e)
     else:
-        logging.info(f"✅ Admin user(s) already exist ({admin_count} found). Skipping initial setup.")
+        logger.info("Administrator bootstrap skipped; %d administrator(s) exist.", admin_count)
 
     conn.close()
 
 
-# Pokreni proveru/kreiranje inicijalnog admina jednom, pri startu aplikacije
-# (radi i pod WSGI/IIS, ne samo pri direktnom pokretanju).
+# Run bootstrap once at application import, including under WSGI/IIS.
 try:
     ensure_initial_admin()
 except Exception as e:
-    logging.error(f"❌ Error during initial admin setup: {str(e)}")
+    logger.exception("Initial administrator setup failed: %s", e)
 
 @app.route('/')
 def index():
@@ -207,12 +408,17 @@ def index():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
+        username = request.form['username'].strip()
         password = request.form['password']
+
+        login_key = _login_key(username)
+        if _is_login_rate_limited(login_key):
+            abort(429, description='Too many failed login attempts. Try again in 15 minutes.')
 
         user = user_model.authenticate(username, password)
 
         if user:
+            _clear_login_failures(login_key)
             session.clear()
             session.permanent = True
             session['user_id'] = user[0]
@@ -227,24 +433,22 @@ def login():
             flash(f"Welcome, {user[4]}!", 'success')
             
             # Redirect to original page or dashboard
-            from auth import get_redirect_target
             next_url = get_redirect_target()
             if next_url:
                 return redirect(next_url)
             return redirect(url_for('dashboard'))
         else:
+            _record_login_failure(login_key)
             flash('Invalid username or password.', 'error')
 
     return render_template('login.html')
 
-@app.route('/logout')
+@app.route('/logout', methods=['POST'])
+@login_required
 def logout():
     session.clear()
     flash('You have been logged out.', 'info')
     return redirect(url_for('login'))
-
-from werkzeug.security import check_password_hash, generate_password_hash
-import re
 
 def valid_email(email):
     if not email:
@@ -423,6 +627,7 @@ def dashboard():
 
     if role != 'admin':
         # All Public Tickets (non-admin users)
+        # Dynamic fragments come only from ALLOWED_SORT_OPTIONS and fixed status clauses.
         query_browse_all = f"""
         SELECT t.id, t.title, t.priority, t.status, t.created_at, t.updated_at, t.created_by, t.assigned_to, t.due_date,
         c.name as category_name, u.full_name as created_by_name,
@@ -797,7 +1002,7 @@ def create_ticket():
 
             if assigned_to_raw and assigned_to_raw.strip() != '':
                 if assigned_to_raw.strip() == 'IT':
-                    assigned_to_db = None  # Store NULL for 'IT'
+                    assigned_to_db = 'IT'
                 else:
                     try:
                         assigned_to_db = int(assigned_to_raw)  # User ID
@@ -808,7 +1013,14 @@ def create_ticket():
 
             watchers_input = request.form.get('watchers', '').strip()
 
-            if not title or not description or not priority or not category_id:
+            if (
+                not title
+                or not description
+                or priority not in VALID_PRIORITIES
+                or not category_id
+                or len(title.strip()) > 200
+                or len(description.strip()) > 20_000
+            ):
                 flash('Please fill in all required fields.', 'error')
                 return render_template(
                     'create_ticket.html',
@@ -850,23 +1062,11 @@ def create_ticket():
                 _ensure_upload_dir()
                 for file in files:
                     if file and file.filename:
-                        # Validate file type
-                        if not allowed_file(file.filename, file.content_type):
-                            flash(f'File type not allowed: {file.filename} ({file.content_type})', 'error')
-                            continue
-                        
-                        import uuid
-                        _, ext = os.path.splitext(file.filename)
-                        unique_filename = f"{ticket_id}_{uuid.uuid4().hex}{ext}"
-                        upload_path = get_upload_path()
-                        file_path = os.path.join(upload_path, unique_filename)
-                        file.save(file_path)
-                        relative_path = os.path.join(upload_path.replace('static/', ''), unique_filename)
-                        cursor.execute("""
-                        INSERT INTO attachments (ticket_id, filename, original_filename, file_path, uploaded_by)
-                        VALUES (?, ?, ?, ?, ?)
-                        """, (ticket_id, unique_filename, file.filename, relative_path, user_id))
-                        conn.commit()
+                        try:
+                            _save_attachment(file, ticket_id, user_id, cursor)
+                        except ValueError as exc:
+                            flash(str(exc), 'error')
+                conn.commit()
             # ==== END FILE UPLOAD ====
 
             log_activity(user_id, 'TICKET_CREATED', f'Ticket ID: {ticket_id}, Title: {title}')
@@ -946,26 +1146,10 @@ def ticket_detail(ticket_id):
         conn.close()
         return redirect(url_for('dashboard'))
 
-    # Convert assigned_to fetched from DB to int (if possible) for permission checks
-    assigned_to_raw = ticket[7]
-    if assigned_to_raw is not None:
-        try:
-            assigned_to_val = int(assigned_to_raw)
-        except (ValueError, TypeError):
-            assigned_to_val = None
-    else:
-        assigned_to_val = None
-
-    # Check permissions
-    if role != 'admin':
-        if ticket[8] == 0:
-            pass
-        else:
-            if ticket[6] != user_id and assigned_to_val != user_id:
-                cursor.execute("SELECT 1 FROM ticket_watchers WHERE ticket_id = ? AND user_id = ?", (ticket_id, user_id))
-                if not cursor.fetchone():
-                    flash('You do not have permission to view this ticket.', 'danger')
-                    return redirect(url_for('dashboard'))
+    access = _get_ticket_access(cursor, ticket_id, user_id)
+    if not _can_view_ticket(access, user_id, role):
+        conn.close()
+        abort(403)
 
     # Get watchers
     cursor.execute("""
@@ -1063,27 +1247,37 @@ def ticket_detail(ticket_id):
         all_users=all_users,
         it_admins=it_admins,          
         activity_log=activity_log,
-        is_muted=is_muted
+        is_muted=is_muted,
+        can_manage=_can_manage_ticket(access, user_id, role)
     )
 
 @app.route('/update_ticket_status', methods=['POST'])
 @login_required
 def update_ticket_status():
-    ticket_id = request.form['ticket_id']
-    new_status = request.form['status']
+    ticket_id = request.form.get('ticket_id', type=int)
+    new_status = request.form.get('status', '').strip()
     actor_id = session.get('user_id')
+
+    if not ticket_id or new_status not in VALID_STATUSES:
+        abort(400)
 
     db = Database()
     conn = db.get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT status FROM tickets WHERE id=?", (ticket_id,))
-    row = cursor.fetchone()
-    old_status = row[0] if row else None
+    access = _get_ticket_access(cursor, ticket_id, actor_id)
+    if not access:
+        conn.close()
+        abort(404)
+    if not _can_change_status(access, actor_id, session.get('role'), new_status):
+        conn.close()
+        abort(403)
+    old_status = access['status']
     conn.close()
 
     ticket_model.update_ticket_status(ticket_id, new_status)
 
-    if old_status is not None:
+    if old_status != new_status:
+        log_ticket_activity(ticket_id, actor_id, 'status_changed', old_status, new_status)
         notify_on_status_change(ticket_id, old_status, new_status, actor_user_id=actor_id)
 
     flash('Ticket status updated!', 'success')
@@ -1103,7 +1297,7 @@ def admin_panel():
     departments = cursor.fetchall()
 
     cursor.execute("""
-    SELECT u.id, u.username, u.password, u.email, u.full_name, u.role, 
+    SELECT u.id, u.username, NULL AS password, u.email, u.full_name, u.role,
     u.department_id, u.is_department_head, u.created_at, d.name as department_name
     FROM users u
     LEFT JOIN departments d ON u.department_id = d.id
@@ -1151,6 +1345,16 @@ def delete_user(user_id):
     cursor = conn.cursor()
 
     try:
+        if user_id == session.get('user_id'):
+            return jsonify({'success': False, 'error': 'You cannot delete your own account.'}), 400
+        cursor.execute("SELECT role FROM users WHERE id = ?", (user_id,))
+        target = cursor.fetchone()
+        if not target:
+            return jsonify({'success': False, 'error': 'User not found.'}), 404
+        if target[0] == 'admin':
+            cursor.execute("SELECT COUNT(*) FROM users WHERE role = 'admin'")
+            if cursor.fetchone()[0] <= 1:
+                return jsonify({'success': False, 'error': 'The last administrator cannot be deleted.'}), 409
         cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
         conn.commit()
         return jsonify({'success': True})
@@ -1256,6 +1460,11 @@ def reopen_ticket(ticket_id):
         return redirect(url_for('dashboard'))
     
     ticket_id_db, status, created_by, assigned_to = ticket
+
+    access = _get_ticket_access(cursor, ticket_id, user_id)
+    if not _can_manage_ticket(access, user_id, role):
+        conn.close()
+        abort(403)
     
     if status != 'closed':
         conn.close()
@@ -1271,19 +1480,6 @@ def reopen_ticket(ticket_id):
     else:
         assigned_to_id = None
 
-    can_reopen = False
-    if role == 'admin' or user_id == created_by or user_id == assigned_to_id:
-        can_reopen = True
-    else:
-        cursor.execute("SELECT 1 FROM ticket_watchers WHERE ticket_id = ? AND user_id = ?", (ticket_id, user_id))
-        if cursor.fetchone():
-            can_reopen = True
-    
-    if not can_reopen:
-        conn.close()
-        flash('You do not have permission to reopen this ticket.', 'error')
-        return redirect(url_for('ticket_detail', ticket_id=ticket_id))
-    
     cursor.execute("""
     UPDATE tickets 
     SET status = 'in_progress', updated_at = datetime('now', 'localtime')
@@ -1328,6 +1524,11 @@ def delete_attachment(attachment_id):
         return redirect(url_for('dashboard'))
     
     attachment_id_db, ticket_id, filename, file_path, uploaded_by, ticket_creator = attachment
+
+    access = _get_ticket_access(cursor, ticket_id, user_id)
+    if not _can_view_ticket(access, user_id, role):
+        conn.close()
+        abort(403)
     
     if role != 'admin' and user_id != uploaded_by and user_id != ticket_creator:
         conn.close()
@@ -1339,11 +1540,9 @@ def delete_attachment(attachment_id):
     conn.close()
     
     try:
-        if not os.path.isabs(file_path):
-            file_path = os.path.join(os.path.abspath(app.config['UPLOAD_FOLDER']), os.path.basename(file_path))
-        
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        resolved_path = _resolve_attachment_path(file_path)
+        if resolved_path and resolved_path.exists():
+            resolved_path.unlink()
     except Exception as e:
         flash(f'Error deleting file from server: {str(e)}', 'warning')
     
@@ -1367,10 +1566,10 @@ def get_all_users():
 @app.route('/add_comment', methods=['POST'])
 @login_required
 def add_comment():
-    ticket_id = request.form.get('ticket_id')
-    comment = request.form.get('comment')
+    ticket_id = request.form.get('ticket_id', type=int)
+    comment = request.form.get('comment', '').strip()
     
-    if not ticket_id or not comment:
+    if not ticket_id or not comment or len(comment) > 10_000:
         flash('Ticket ID and comment are required.', 'error')
         return redirect(url_for('dashboard'))
     
@@ -1379,6 +1578,13 @@ def add_comment():
     cursor = conn.cursor()
     
     user_id = session.get('user_id')
+    access = _get_ticket_access(cursor, ticket_id, user_id)
+    if not access:
+        conn.close()
+        abort(404)
+    if not _can_view_ticket(access, user_id, session.get('role')):
+        conn.close()
+        abort(403)
     
     # Add comment
     cursor.execute("""
@@ -1386,41 +1592,24 @@ def add_comment():
     VALUES (?, ?, ?)
     """, (ticket_id, user_id, comment))
     
-    # ==== HANDLE PASTED IMAGES ====
-    pasted_files = []
     for key in request.files:
         if key.startswith('pasted_file_'):
-            pasted_files.append(request.files[key])
-    
-    if pasted_files:
-        import os
-        from werkzeug.utils import secure_filename
-        
-        UPLOAD_FOLDER = 'uploads'
-        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-        
-        for file in pasted_files:
-            if file and file.filename:
-                filename = secure_filename(file.filename)
-                filepath = os.path.join(UPLOAD_FOLDER, f"{ticket_id}_{filename}")
-                file.save(filepath)
-                
-                # Add as attachment
-                cursor.execute("""
-                INSERT INTO attachments (ticket_id, filename, filepath, uploaded_by)
-                VALUES (?, ?, ?, ?)
-                """, (ticket_id, filename, filepath, user_id))
-                
-                # Update ticket timestamp
-                cursor.execute("""
-                UPDATE tickets SET updated_at = datetime('now', 'localtime')
-                WHERE id = ?
-                """, (ticket_id,))
+            try:
+                _save_attachment(request.files[key], ticket_id, user_id, cursor)
+            except ValueError as exc:
+                conn.rollback()
+                conn.close()
+                flash(str(exc), 'error')
+                return redirect(url_for('ticket_detail', ticket_id=ticket_id))
+
+    cursor.execute(
+        "UPDATE tickets SET updated_at = datetime('now', 'localtime') WHERE id = ?",
+        (ticket_id,),
+    )
     
     conn.commit()
     conn.close()
     
-    from notifications import notify_on_comment
     notify_on_comment(ticket_id, user_id, comment)
     
     flash('Comment added successfully.', 'success')
@@ -1429,7 +1618,7 @@ def add_comment():
 @app.route('/upload_attachment', methods=['POST'])
 @login_required
 def upload_attachment():
-    ticket_id = request.form.get('ticket_id')
+    ticket_id = request.form.get('ticket_id', type=int)
     
     if not ticket_id:
         flash('Ticket ID is required.', 'error')
@@ -1442,48 +1631,52 @@ def upload_attachment():
         flash('No file selected.', 'error')
         return redirect(url_for('ticket_detail', ticket_id=ticket_id))
     
-    import os
-    from werkzeug.utils import secure_filename
-    
-    UPLOAD_FOLDER = 'uploads'
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-    
     db = Database()
     conn = db.get_connection()
     cursor = conn.cursor()
     
     user_id = session.get('user_id')
+    access = _get_ticket_access(cursor, ticket_id, user_id)
+    if not access:
+        conn.close()
+        abort(404)
+    if not _can_view_ticket(access, user_id, session.get('role')):
+        conn.close()
+        abort(403)
+
     uploaded_count = 0
+
+    invalid_file = next(
+        (file for file in files if file and file.filename and not allowed_file(file.filename, file.content_type)),
+        None,
+    )
+    if invalid_file:
+        conn.close()
+        flash(f'File type not allowed: {invalid_file.filename}', 'error')
+        return redirect(url_for('ticket_detail', ticket_id=ticket_id))
     
     for file in files:
         if file and file.filename:
-            original_filename = file.filename
-            # Create unique filename
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            safe_name = secure_filename(original_filename)
-            filename = f"{ticket_id}_{timestamp}_{safe_name}"
-            filepath = os.path.join(UPLOAD_FOLDER, filename)
-            
-            # Save file
-            file.save(filepath)
-            
-            # Save to database (ISPRAVLJENO: file_path + original_filename)
-            cursor.execute("""
-            INSERT INTO attachments (ticket_id, filename, original_filename, file_path, uploaded_by)
-            VALUES (?, ?, ?, ?, ?)
-            """, (ticket_id, filename, original_filename, filepath, user_id))
-            
-            uploaded_count += 1
-            
-            # Update ticket timestamp
-            cursor.execute("""
-            UPDATE tickets SET updated_at = datetime('now', 'localtime')
-            WHERE id = ?
-            """, (ticket_id,))
+            try:
+                if _save_attachment(file, ticket_id, user_id, cursor):
+                    uploaded_count += 1
+            except ValueError as exc:
+                conn.rollback()
+                conn.close()
+                flash(str(exc), 'error')
+                return redirect(url_for('ticket_detail', ticket_id=ticket_id))
+
+    cursor.execute(
+        "UPDATE tickets SET updated_at = datetime('now', 'localtime') WHERE id = ?",
+        (ticket_id,),
+    )
     
     conn.commit()
     conn.close()
     
+    if uploaded_count:
+        log_ticket_activity(ticket_id, user_id, 'attachment_uploaded', new_value=f'{uploaded_count} file(s)')
+        notify_on_attachment(ticket_id, actor_user_id=user_id, filename=f'{uploaded_count} file(s)')
     flash(f'{uploaded_count} file(s) uploaded successfully.', 'success')
     return redirect(url_for('ticket_detail', ticket_id=ticket_id))
 
@@ -1508,8 +1701,25 @@ def import_users():
         flash('No file selected!', 'error')
         return redirect(url_for('import_users'))
 
+    workbook = None
     try:
-        df = pd.read_excel(file)
+        if not file.filename.lower().endswith('.xlsx'):
+            raise ValueError('Only .xlsx files are supported.')
+
+        workbook = load_workbook(file, read_only=True, data_only=True)
+        worksheet = workbook.active
+        rows = worksheet.iter_rows(values_only=True)
+        try:
+            headers = [str(value).strip() if value is not None else '' for value in next(rows)]
+        except StopIteration as exc:
+            raise ValueError('The spreadsheet is empty.') from exc
+
+        required_columns = {'username', 'password', 'full_name'}
+        if not required_columns.issubset(headers):
+            missing = ', '.join(sorted(required_columns - set(headers)))
+            raise ValueError(f'Missing required columns: {missing}')
+        if worksheet.max_row > 1_001:
+            raise ValueError('A single import is limited to 1,000 users.')
 
         db = Database()
         conn = db.get_connection()
@@ -1518,14 +1728,27 @@ def import_users():
         imported_count = 0
         errors = []
 
-        for index, row in df.iterrows():
+        for index, values in enumerate(rows, start=2):
+            row = dict(zip(headers, values))
+            if not any(value is not None and str(value).strip() for value in values):
+                continue
             try:
-                username = row['username']
-                password = hash_password(str(row['password']))
-                full_name = row['full_name']
-                email = row.get('email', '')
-                department_name = row.get('department_name', '')
-                role = row.get('role', 'user')
+                username = '' if row.get('username') is None else str(row['username']).strip()
+                raw_password = '' if row.get('password') is None else str(row['password'])
+                full_name = '' if row.get('full_name') is None else str(row['full_name']).strip()
+                email = '' if row.get('email') is None else str(row['email']).strip()
+                department_name = '' if row.get('department_name') is None else str(row['department_name']).strip()
+                role = 'user' if row.get('role') is None else str(row['role']).strip().lower()
+
+                if not username or len(username) > 80 or not full_name or len(full_name) > 120:
+                    raise ValueError('Invalid username or full name')
+                if len(raw_password) < 8:
+                    raise ValueError('Password must be at least 8 characters')
+                if email and not valid_email(email):
+                    raise ValueError('Invalid email address')
+                if role not in {'user', 'admin'}:
+                    raise ValueError('Role must be user or admin')
+                password = hash_password(raw_password)
 
                 department_id = None
                 if department_name:
@@ -1544,7 +1767,7 @@ def import_users():
 
                 imported_count += 1
             except Exception as e:
-                errors.append(f"Row {index + 2}: {str(e)}")
+                errors.append(f"Row {index}: {str(e)}")
 
         conn.commit()
         conn.close()
@@ -1556,22 +1779,36 @@ def import_users():
 
     except Exception as e:
         flash(f'Error reading Excel file: {str(e)}', 'error')
+    finally:
+        if workbook is not None:
+            workbook.close()
 
     return redirect(url_for('admin_panel'))
 
 @app.route('/add_user_manual', methods=['POST'])
 @admin_required
 def add_user_manual():
-    username = request.form['username']
+    username = request.form['username'].strip()
     password = request.form['password']
-    full_name = request.form['full_name']
-    email = request.form.get('email', '')
+    full_name = request.form['full_name'].strip()
+    email = request.form.get('email', '').strip()
     department_id = request.form.get('department_id')
-    role = request.form.get('role', 'user')
+    role = request.form.get('role', 'user').strip().lower()
     is_department_head = 1 if request.form.get('is_department_head') else 0
 
     if department_id == '':
         department_id = None
+
+    if (
+        not username
+        or len(username) > 80
+        or not full_name
+        or len(full_name) > 120
+        or len(password) < 8
+        or (email and not valid_email(email))
+        or role not in {'user', 'admin'}
+    ):
+        abort(400)
 
     db = Database()
     conn = db.get_connection()
@@ -1599,29 +1836,6 @@ def add_user_manual():
         conn.close()
 
     return redirect(url_for('admin_panel'))
-
-@app.route('/debug_users')
-@admin_required
-def debug_users():
-    db = Database()
-    conn = db.get_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute("""
-    SELECT u.id, u.username, u.full_name, u.department_id, d.name as dept_name
-    FROM users u
-    LEFT JOIN departments d ON u.department_id = d.id
-    ORDER BY u.id
-    """)
-    users = cursor.fetchall()
-    conn.close()
-    
-    output = "<h2>Users Debug</h2><table border='1'><tr><th>ID</th><th>Username</th><th>Full Name</th><th>Dept ID</th><th>Dept Name</th></tr>"
-    for user in users:
-        output += f"<tr><td>{user[0]}</td><td>{user[1]}</td><td>{user[2]}</td><td>{user[3]}</td><td>{user[4]}</td></tr>"
-    output += "</table>"
-    
-    return output
 
 @app.route('/assign_department', methods=['POST'])
 @admin_required
@@ -1657,6 +1871,11 @@ def edit_ticket(ticket_id):
             conn.close()
             return redirect(url_for('dashboard'))
 
+        access = _get_ticket_access(cursor, ticket_id, user_id)
+        if not _can_manage_ticket(access, user_id, role):
+            conn.close()
+            abort(403)
+
         if request.method == 'POST':
             cursor.execute("SELECT created_by, assigned_to FROM tickets WHERE id = ?", (ticket_id,))
             row = cursor.fetchone()
@@ -1687,7 +1906,14 @@ def edit_ticket(ticket_id):
                 assigned_to_form = request.form.get('assigned_to') or None
                 watchers_input = request.form.get('watchers', '').strip()
 
-                if not title or not description or not priority or not category_id:
+                if (
+                    not title
+                    or not description
+                    or priority not in VALID_PRIORITIES
+                    or not category_id
+                    or len(title.strip()) > 200
+                    or len(description.strip()) > 20_000
+                ):
                     flash('Please fill in all required fields.', 'error')
                     conn.close()
                     return render_template(
@@ -1704,7 +1930,7 @@ def edit_ticket(ticket_id):
                 assigned_to_db = None
                 if assigned_to_form and assigned_to_form.strip() != '':
                     if assigned_to_form.strip() == 'IT':
-                        assigned_to_db = None
+                        assigned_to_db = 'IT'
                     else:
                         try:
                             assigned_to_db = int(assigned_to_form)
@@ -1796,6 +2022,8 @@ def edit_ticket(ticket_id):
         )
 
     except Exception as e:
+        if isinstance(e, HTTPException):
+            raise
         try:
             conn.close()
         except Exception:
@@ -1932,16 +2160,13 @@ def assign_ticket():
     conn = db.get_connection()
     cursor = conn.cursor()
     
-    cursor.execute("""
-    SELECT COUNT(*) FROM ticket_watchers 
-    WHERE ticket_id = ? AND user_id = ?
-    """, (ticket_id, current_user_id))
-    is_watcher = cursor.fetchone()[0] > 0
-    
-    if user_role != 'admin' and not is_watcher:
-        flash('Access denied.', 'error')
+    access = _get_ticket_access(cursor, ticket_id, current_user_id)
+    if not access:
         conn.close()
-        return redirect(url_for('dashboard'))
+        abort(404)
+    if not _can_manage_ticket(access, current_user_id, user_role):
+        conn.close()
+        abort(403)
 
     assigned_to_db = None
     if assigned_to and assigned_to.strip() != '':
@@ -1952,14 +2177,12 @@ def assign_ticket():
             conn.close()
             return redirect(url_for('dashboard'))
 
-    cursor.execute("SELECT status FROM tickets WHERE id = ?", (ticket_id,))
-    row = cursor.fetchone()
-    if not row:
-        flash('Ticket not found.', 'error')
-        conn.close()
-        return redirect(url_for('dashboard'))
+        cursor.execute("SELECT 1 FROM users WHERE id = ?", (assigned_to_db,))
+        if not cursor.fetchone():
+            conn.close()
+            abort(400)
 
-    current_status = row[0]
+    current_status = access['status']
     new_status = 'assigned' if current_status == 'new' and assigned_to_db is not None else current_status
 
     cursor.execute("""
@@ -1984,23 +2207,29 @@ def download_attachment(attachment_id):
     cursor = conn.cursor()
     
     cursor.execute("""
-    SELECT filename, original_filename, file_path 
-    FROM attachments 
+    SELECT filename, original_filename, file_path, ticket_id
+    FROM attachments
     WHERE id = ?
     """, (attachment_id,))
     
     attachment = cursor.fetchone()
-    conn.close()
-    
     if not attachment:
+        conn.close()
         flash('Attachment not found.', 'error')
         return redirect(url_for('dashboard'))
-    
-    filename = attachment[0]
+
+    access = _get_ticket_access(cursor, attachment[3], session.get('user_id'))
+    if not _can_view_ticket(access, session.get('user_id'), session.get('role')):
+        conn.close()
+        abort(403)
+    conn.close()
+
     original_filename = attachment[1]
-    file_path = attachment[2]
-    
-    return send_file(file_path, as_attachment=True, download_name=original_filename)
+    file_path = _resolve_attachment_path(attachment[2])
+    if not file_path or not file_path.is_file():
+        abort(404)
+
+    return send_file(file_path, as_attachment=True, download_name=original_filename, conditional=True)
 
 @app.route('/edit_user/<int:user_id>')
 @admin_required
@@ -2026,22 +2255,47 @@ def edit_user(user_id):
 @app.route('/update_user/<int:user_id>', methods=['POST'])
 @admin_required
 def update_user(user_id):
-    username = request.form['username']
-    full_name = request.form['full_name']
-    email = request.form.get('email', '')
+    username = request.form['username'].strip()
+    full_name = request.form['full_name'].strip()
+    email = request.form.get('email', '').strip()
     role = request.form.get('role', 'user')
     department_id = request.form.get('department_id') or None
     is_department_head = 1 if request.form.get('is_department_head') else 0
 
     password = request.form.get('password')
 
+    if (
+        not username
+        or len(username) > 80
+        or not full_name
+        or len(full_name) > 120
+        or (email and not valid_email(email))
+        or role not in {'user', 'admin'}
+    ):
+        abort(400)
+
     db = Database()
     conn = db.get_connection()
     cursor = conn.cursor()
 
+    cursor.execute("SELECT role FROM users WHERE id = ?", (user_id,))
+    existing_user = cursor.fetchone()
+    if not existing_user:
+        conn.close()
+        abort(404)
+    if existing_user[0] == 'admin' and role != 'admin':
+        cursor.execute("SELECT COUNT(*) FROM users WHERE role = 'admin'")
+        if cursor.fetchone()[0] <= 1:
+            conn.close()
+            abort(409)
+
     try:
         if password:
-            hashed_password = hashlib.sha256(password.encode()).hexdigest()
+            if len(password) < 8:
+                flash('Password must be at least 8 characters.', 'error')
+                conn.close()
+                return redirect(url_for('edit_user', user_id=user_id))
+            hashed_password = hash_password(password)
             cursor.execute("""
             UPDATE users
             SET username=?, password=?, full_name=?, email=?, role=?, department_id=?, is_department_head=?
@@ -2057,7 +2311,8 @@ def update_user(user_id):
         conn.commit()
         flash('User updated successfully!', 'success')
     except Exception as e:
-        flash(f'Error updating user: {str(e)}', 'error')
+        logger.exception("Could not update user %s: %s", user_id, e)
+        flash('Could not update the user.', 'error')
     finally:
         conn.close()
 
@@ -2155,7 +2410,7 @@ def api_users():
 @app.route('/reassign_ticket/<int:ticket_id>', methods=['POST'])
 @login_required
 def reassign_ticket(ticket_id):
-    """Reassign ticket - Allows: admin, creator, assigned user, or watcher"""
+    """Reassign a ticket as an admin, creator or current assignee."""
     user_id = session.get('user_id')
     role = session.get('role')
 
@@ -2177,7 +2432,6 @@ def reassign_ticket(ticket_id):
         return redirect(url_for('dashboard'))
 
     current_assigned_to_raw = row[0]
-    created_by = row[1]
     
     # Convert current_assigned_to for permission checks (keep raw for 'IT' detection)
     if current_assigned_to_raw is not None and current_assigned_to_raw != 'IT':
@@ -2188,26 +2442,16 @@ def reassign_ticket(ticket_id):
     else:
         current_assigned_to = None
     
-    # Check if watcher
-    cursor.execute("""
-    SELECT COUNT(*) FROM ticket_watchers 
-    WHERE ticket_id = ? AND user_id = ?
-    """, (ticket_id, user_id))
-    is_watcher = cursor.fetchone()[0] > 0
-    
-    # Permission check
-    current_assigned_to = row[0]
-    if role != 'admin' and str(current_assigned_to) != str(user_id):
-        flash('You do not have permission to reassign this ticket.', 'error')
+    access = _get_ticket_access(cursor, ticket_id, user_id)
+    if not _can_manage_ticket(access, user_id, role):
         conn.close()
-        return redirect(url_for('ticket_detail', ticket_id=ticket_id))
+        abort(403)
 
     # ==== ASSIGN - Store NULL for 'IT', integer for users ====
     if new_assigned_to == 'IT':
-        # Set to NULL (displays as 'IT' in UI)
         cursor.execute("""
         UPDATE tickets 
-        SET assigned_to = NULL,
+        SET assigned_to = 'IT',
         status = CASE WHEN status = 'new' THEN 'assigned' ELSE status END,
         updated_at = datetime('now', 'localtime')
         WHERE id = ?
@@ -2217,6 +2461,10 @@ def reassign_ticket(ticket_id):
         # Assign to specific user
         try:
             assigned_to_int = int(new_assigned_to)
+            cursor.execute("SELECT 1 FROM users WHERE id = ?", (assigned_to_int,))
+            if not cursor.fetchone():
+                conn.close()
+                abort(400)
             cursor.execute("""
             UPDATE tickets 
             SET assigned_to = ?,
@@ -2270,7 +2518,6 @@ def reassign_ticket(ticket_id):
 
     # Notification
     try:
-        from notifications import notify_on_reassigned
         notify_on_reassigned(ticket_id, actor_user_id=user_id, new_assigned_to_id=assigned_to_for_notification)
     except Exception as e:
         print(f"Notification error: {e}")
@@ -2297,12 +2544,18 @@ def bulk_assign_it_tickets():
     db = Database()
     conn = db.get_connection()
     cursor = conn.cursor()
-    
+
+    cursor.execute("SELECT full_name FROM users WHERE id = ? AND role = 'admin'", (assign_to_id,))
+    admin = cursor.fetchone()
+    if not admin:
+        conn.close()
+        abort(400)
+
     try:
         # Get all IT assigned tickets that are not closed
         cursor.execute("""
         SELECT id FROM tickets 
-        WHERE assigned_to = 'IT' AND status != 'closed'
+        WHERE (assigned_to = 'IT' OR assigned_to IS NULL) AND status != 'closed'
         """)
         it_tickets = cursor.fetchall()
         
@@ -2315,6 +2568,7 @@ def bulk_assign_it_tickets():
         ticket_ids = [ticket[0] for ticket in it_tickets]
         placeholders = ','.join('?' * len(ticket_ids))
         
+        # The IN list contains one placeholder per integer ID loaded from the database.
         cursor.execute(f"""
         UPDATE tickets 
         SET assigned_to = ?, 
@@ -2326,8 +2580,7 @@ def bulk_assign_it_tickets():
         conn.commit()
         
         # Get assigned admin name
-        cursor.execute("SELECT full_name FROM users WHERE id = ?", (assign_to_id,))
-        admin_name = cursor.fetchone()[0]
+        admin_name = admin[0]
         
         flash(f'Successfully assigned {len(ticket_ids)} IT ticket(s) to {admin_name}!', 'success')
         
@@ -2360,35 +2613,14 @@ def add_watchers(ticket_id):
     conn = db.get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT assigned_to FROM tickets WHERE id = ?", (ticket_id,))
-    row = cursor.fetchone()
-    if not row:
+    access = _get_ticket_access(cursor, ticket_id, user_id)
+    if not access:
         flash('Ticket not found.', 'error')
         conn.close()
         return redirect(url_for('dashboard'))
-
-    assigned_to_raw = row[0]
-    # Convert assigned_to for permission comparisons
-    if assigned_to_raw is not None and assigned_to_raw != 'IT':
-        try:
-            assigned_to_val = int(assigned_to_raw)
-        except (ValueError, TypeError):
-            assigned_to_val = None
-    else:
-        assigned_to_val = None
-
-    cursor.execute("SELECT created_by FROM tickets WHERE id = ?", (ticket_id,))
-    creator_row = cursor.fetchone()
-    creator_id = creator_row[0] if creator_row else None
-
-    cursor.execute("SELECT 1 FROM ticket_watchers WHERE ticket_id = ? AND user_id = ?", (ticket_id, user_id))
-    is_watcher = cursor.fetchone() is not None
-
-    assigned_to = row[0]
-    if role != 'admin' and str(user_id) != str(assigned_to):
-        flash('You do not have permission to add watchers to this ticket.', 'error')
+    if not _can_manage_ticket(access, user_id, role):
         conn.close()
-        return redirect(url_for('ticket_detail', ticket_id=ticket_id))
+        abort(403)
 
     watcher_names = [w.strip() for w in watchers_input.split(',') if w.strip()]
     added_watchers = []
@@ -2432,11 +2664,17 @@ def remove_watcher(ticket_id):
     conn = db.get_connection()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT id FROM tickets WHERE id = ?", (ticket_id,))
-    if not cursor.fetchone():
+    access = _get_ticket_access(cursor, ticket_id, user_id)
+    if not access:
         conn.close()
         flash('Ticket not found.', 'error')
         return redirect(url_for('dashboard'))
+
+    if watcher_id_to_remove != user_id and not _can_manage_ticket(
+        access, user_id, session.get('role')
+    ):
+        conn.close()
+        abort(403)
     
     cursor.execute("""
     DELETE FROM ticket_watchers 
@@ -2472,6 +2710,14 @@ def mute_ticket(ticket_id):
     db = Database()
     conn = db.get_connection()
     cursor = conn.cursor()
+
+    access = _get_ticket_access(cursor, ticket_id, user_id)
+    if not access:
+        conn.close()
+        abort(404)
+    if not _can_view_ticket(access, user_id, session.get('role')) or not access['is_watcher']:
+        conn.close()
+        abort(403)
     
     # Dodaj korisnika u muted listu
     cursor.execute("""
@@ -2493,6 +2739,14 @@ def unmute_ticket(ticket_id):
     db = Database()
     conn = db.get_connection()
     cursor = conn.cursor()
+
+    access = _get_ticket_access(cursor, ticket_id, user_id)
+    if not access:
+        conn.close()
+        abort(404)
+    if not _can_view_ticket(access, user_id, session.get('role')):
+        conn.close()
+        abort(403)
     
     # Ukloni korisnika iz muted liste
     cursor.execute("""
@@ -2689,5 +2943,9 @@ def get_user_templates(user_id):
     conn.close()
     return templates
 
-if __name__ == '__main__':    
-    app.run(debug=False, host='0.0.0.0', port=5000)
+if __name__ == '__main__':
+    app.run(
+        debug=False,
+        host=os.getenv('HOST', '127.0.0.1'),
+        port=int(os.getenv('PORT', '5000')),
+    )

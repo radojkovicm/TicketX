@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Show file info
                 const fileInfo = document.createElement('div');
                 fileInfo.className = 'mt-2 text-muted';
-                fileInfo.innerHTML = `Selected: ${file.name} (${fileSize}MB)`;
+                fileInfo.textContent = `Selected: ${file.name} (${fileSize}MB)`;
                 
                 // Remove existing file info
                 const existingInfo = this.parentNode.querySelector('.file-info');
@@ -192,9 +192,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 users.forEach(user => {
                     const item = document.createElement('div');
-                    item.innerHTML = "<strong>" + user.substr(0, lastPart.length) + "</strong>";
-                    item.innerHTML += user.substr(lastPart.length);
-                    item.innerHTML += "<input type='hidden' value='" + user + "'>";
+                    const strong = document.createElement('strong');
+                    strong.textContent = user.substr(0, lastPart.length);
+                    item.appendChild(strong);
+                    item.appendChild(document.createTextNode(user.substr(lastPart.length)));
+
+                    const hidden = document.createElement('input');
+                    hidden.type = 'hidden';
+                    hidden.value = user;
+                    item.appendChild(hidden);
                     item.addEventListener('click', () => {
                         // Zameni samo poslednji deo sa izabranim korisnikom
                         parts[parts.length - 1] = user;

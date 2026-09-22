@@ -2,19 +2,13 @@ import sqlite3
 import os
 import threading
 from contextlib import contextmanager
-from datetime import datetime
 import logging
 
 class Database:
-    """
-    Database class with connection pooling for improved performance.
-    Supports up to 200 concurrent users with optimized SQLite settings.
-    """
-    
-    # Class-level connection pool
-    _pool = []
-    _pool_size = 20  # Max 20 connections in pool
-    _lock = threading.Lock()
+    """SQLite database access with one short-lived connection per operation."""
+
+    _initialized_paths = set()
+    _initialization_lock = threading.Lock()
     
     def __init__(self, db_path=None):
         """
@@ -26,8 +20,11 @@ class Database:
         if db_path is None:
             db_path = os.getenv('DB_PATH', 'tickets.db')
         
-        self.db_path = db_path
-        self.init_db()
+        self.db_path = os.path.abspath(db_path)
+        with self._initialization_lock:
+            if self.db_path not in self._initialized_paths or not os.path.exists(self.db_path):
+                self.init_db()
+                self._initialized_paths.add(self.db_path)
     
     @classmethod
     def _create_connection(cls, db_path):
@@ -51,6 +48,7 @@ class Database:
         conn.execute('PRAGMA journal_mode=WAL')
         # Optimize synchronization for performance
         conn.execute('PRAGMA synchronous=NORMAL')
+        conn.execute('PRAGMA busy_timeout=30000')
         # Increase cache size to 64MB
         conn.execute('PRAGMA cache_size=-64000')
         # Enable foreign keys
@@ -60,33 +58,9 @@ class Database:
         
         return conn
     
-    @classmethod
-    def _get_from_pool(cls, db_path):
-        """
-        Create a new connection.
-
-        Napomena: raniji "pool" je bio nefunkcionalan jer se svuda u kodu
-        pozivao conn.close() (fizicko zatvaranje), pa se pool nikad nije
-        koristio. Svaka konekcija se sada otvara po potrebi; konkurentnost
-        obezbedjuje WAL rezim. Ako zatreba pravi pool, treba uvesti
-        eksplicitan release() umesto close() na svim pozivima.
-
-        Args:
-            db_path: Path to database file
-
-        Returns:
-            sqlite3.Connection: Database connection
-        """
-        return cls._create_connection(db_path)
-
-    @classmethod
-    def _return_to_pool(cls, conn):
-        """
-        Close a connection (pool je uklonjen, vidi _get_from_pool).
-
-        Args:
-            conn: Connection to close
-        """
+    @staticmethod
+    def _close_connection(conn):
+        """Close a connection, including already-closed connections."""
         try:
             conn.close()
         except Exception:
@@ -104,7 +78,7 @@ class Database:
         Returns:
             sqlite3.Connection: Database connection
         """
-        conn = self._get_from_pool(self.db_path)
+        conn = self._create_connection(self.db_path)
         try:
             from flask import g, has_app_context
             if has_app_context():
@@ -137,7 +111,7 @@ class Database:
             logging.error(f"Database error: {str(e)}")
             raise
         finally:
-            self._return_to_pool(conn)
+            self._close_connection(conn)
     
     def init_db(self):
         """
@@ -310,8 +284,13 @@ class Database:
         # Insert default reference data (NOT admin user)
         self._insert_default_data(cursor)
 
+        # Normalize the legacy representation used for the shared IT queue.
+        cursor.execute("UPDATE tickets SET assigned_to = 'IT' WHERE assigned_to IS NULL")
+
+        self._create_indexes(cursor)
+
         conn.commit()
-        self._return_to_pool(conn)
+        self._close_connection(conn)
     
     def _run_migrations(self, cursor, conn):
         """
@@ -375,20 +354,23 @@ class Database:
                 "INSERT OR IGNORE INTO departments (name, description) VALUES (?, ?)",
                 (name, description)
             )
-    
-    @classmethod
-    def close_all_connections(cls):
-        """
-        Close all connections in the pool.
-        Useful for cleanup on application shutdown.
-        """
-        with cls._lock:
-            while cls._pool:
-                conn = cls._pool.pop()
-                try:
-                    conn.close()
-                except:
-                    pass
+
+    def _create_indexes(self, cursor):
+        """Create indexes used by the dashboard, search and audit views."""
+        statements = (
+            "CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)",
+            "CREATE INDEX IF NOT EXISTS idx_tickets_assigned_to ON tickets(assigned_to)",
+            "CREATE INDEX IF NOT EXISTS idx_tickets_created_by ON tickets(created_by)",
+            "CREATE INDEX IF NOT EXISTS idx_tickets_updated_at ON tickets(updated_at DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_tickets_category ON tickets(category_id)",
+            "CREATE INDEX IF NOT EXISTS idx_tickets_status_assigned ON tickets(status, assigned_to)",
+            "CREATE INDEX IF NOT EXISTS idx_watchers_user ON ticket_watchers(user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_comments_ticket ON comments(ticket_id)",
+            "CREATE INDEX IF NOT EXISTS idx_attachments_ticket ON attachments(ticket_id)",
+            "CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_logs(created_at DESC)",
+        )
+        for statement in statements:
+            cursor.execute(statement)
 
 # Initialize database when module is run directly
 if __name__ == "__main__":

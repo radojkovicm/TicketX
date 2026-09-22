@@ -3,6 +3,7 @@ Supports background email sending for improved performance.
 """
 import os
 import logging
+from html import escape
 from database import Database
 from threading import Thread
 from functools import wraps
@@ -18,7 +19,7 @@ def _bool_env(name, default=False):
 
 EXCLUDE_ACTOR = _bool_env("EXCLUDE_ACTOR_FROM_NOTIFICATIONS", True)
 NOTIFY_IT_ADMINS_IF_IT = _bool_env("NOTIFY_IT_ADMINS_WHEN_ASSIGNED_TO_IT", True)
-APP_BASE_URL = os.environ.get("APP_BASE_URL", "https://ticketx.example.com/")
+APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://localhost:5000").rstrip('/')
 IT_MAILBOX = os.getenv("IT_MAILBOX", "").strip()
 ENABLE_ASYNC_EMAIL = _bool_env("ENABLE_ASYNC_EMAIL", True)
 
@@ -290,7 +291,7 @@ def _build_html_email(ticket, change_label, change_message_html, change_icon='ðŸ
     Returns:
         Complete HTML email string
     """
-    ticket_url = _ticket_url(ticket['id'])
+    ticket_url = escape(_ticket_url(ticket['id']), quote=True)
     priority_colors = {
         'high': '#dc3545',
         'medium': '#ffc107',
@@ -305,15 +306,24 @@ def _build_html_email(ticket, change_label, change_message_html, change_icon='ðŸ
         'closed': '#28a745'
     }
     status_color = status_colors.get(ticket.get('status', 'new'), '#6c757d')
-    status_text = ticket.get('status', 'new').replace('_', ' ').title()
-    creator_name = ticket.get('creator_name', 'Unknown')
-    assigned_name = ticket.get('assigned_name', 'IT')
-    changed_by_name = actor_name or 'System'
-    last_updated = _format_timestamp(ticket.get('updated_at'))
+    status_text = escape(str(ticket.get('status', 'new')).replace('_', ' ').title())
+    priority_text = escape(str(ticket.get('priority', 'medium')).upper())
+    title = escape(str(ticket.get('title', 'N/A')))
+    category = escape(str(ticket.get('category', 'N/A')))
+    creator_name = escape(str(ticket.get('creator_name', 'Unknown')))
+    assigned_name = escape(str(ticket.get('assigned_name', 'IT')))
+    changed_by_name = escape(str(actor_name or 'System'))
+    last_updated = escape(str(_format_timestamp(ticket.get('updated_at'))))
+    safe_change_label = escape(str(change_label))
+    safe_change_icon = escape(str(change_icon))
 
     # Short description preview
     description = ticket.get('description') or ''
-    desc_preview = (description[:200] + ("..." if len(description) > 200 else "")) if description else "No description provided"
+    desc_preview = escape(
+        (description[:200] + ("..." if len(description) > 200 else ""))
+        if description
+        else "No description provided"
+    )
 
     # Recipient reasons footer
     recipient_reasons_html = ""
@@ -337,7 +347,7 @@ def _build_html_email(ticket, change_label, change_message_html, change_icon='ðŸ
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ticket #{ticket['id']} - {change_icon} {change_label}</title>
+    <title>Ticket #{ticket['id']} - {safe_change_icon} {safe_change_label}</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background-color: #f5f5f5;">
 
@@ -348,7 +358,7 @@ def _build_html_email(ticket, change_label, change_message_html, change_icon='ðŸ
                     <tr>
                         <td style="background-color: #2c3e50; padding: 20px 30px; text-align: center;">
                             <h1 style="margin: 0; color: #ffffff; font-size: 20px; font-weight: 600;">Ticket System</h1>
-                            <p style="margin: 5px 0 0 0; color: #ecf0f1; font-size: 13px;">{change_icon} {change_label}</p>
+                            <p style="margin: 5px 0 0 0; color: #ecf0f1; font-size: 13px;">{safe_change_icon} {safe_change_label}</p>
                         </td>
                     </tr>
                     <!-- Change Summary -->
@@ -376,7 +386,7 @@ def _build_html_email(ticket, change_label, change_message_html, change_icon='ðŸ
                                                 <td style="padding: 5px 0; font-size: 14px; color: #6c757d;">
                                                     <strong style="color: #2c3e50;">Title:</strong>
                                                 </td>
-                                                <td style="padding: 5px 0; font-size: 14px; color: #2c3e50; text-align: right;">{ticket.get('title', 'N/A')}</td>
+                                                <td style="padding: 5px 0; font-size: 14px; color: #2c3e50; text-align: right;">{title}</td>
                                             </tr>
                                             <tr>
                                                 <td style="padding: 5px 0; font-size: 14px; color: #6c757d;">
@@ -407,7 +417,7 @@ def _build_html_email(ticket, change_label, change_message_html, change_icon='ðŸ
                                                     <strong style="color: #2c3e50;">Priority:</strong>
                                                 </td>
                                                 <td style="padding: 8px 0; text-align: right;">
-                                                    <span style="background-color: {priority_color}; color: white; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 500;">{ticket.get('priority', 'medium').upper()}</span>
+                                                    <span style="background-color: {priority_color}; color: white; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 500;">{priority_text}</span>
                                                 </td>
                                             </tr>
                                             <tr>
@@ -422,7 +432,7 @@ def _build_html_email(ticket, change_label, change_message_html, change_icon='ðŸ
                                                 <td style="padding: 5px 0; font-size: 14px; color: #6c757d;">
                                                     <strong style="color: #2c3e50;">Category:</strong>
                                                 </td>
-                                                <td style="padding: 5px 0; font-size: 14px; color: #2c3e50; text-align: right;">{ticket.get("category", "N/A")}</td>
+                                                <td style="padding: 5px 0; font-size: 14px; color: #2c3e50; text-align: right;">{category}</td>
                                             </tr>''' if ticket.get('category') else ''}
                                         </table>
                                     </td>
@@ -543,20 +553,23 @@ def notify_on_ticket_created(ticket_id, actor_user_id):
     _notify(ticket_id, change_label, subject_text, change_message_html, actor_user_id, change_type='creation')
 
 def notify_on_status_change(ticket_id, old_status, new_status, actor_user_id):
-    change_label = f"Status Changed: {old_status} â†’ {new_status}"
+    safe_old_status = escape(str(old_status).replace('_', ' ').title())
+    safe_new_status = escape(str(new_status).replace('_', ' ').title())
+    change_label = f"Status Changed: {safe_old_status} â†’ {safe_new_status}"
     subject_text = "Status Updated"
     change_message_html = f"""
         <p style="margin: 0; color: #333; font-size: 15px;">
             <strong>ðŸ”„ Ticket status has been updated:</strong>
         </p>
         <p style="margin: 10px 0 0 0; color: #666; font-size: 14px;">
-            {old_status.replace('_', ' ').title()} â†’ {new_status.replace('_', ' ').title()}
+            {safe_old_status} â†’ {safe_new_status}
         </p>
     """
     _notify(ticket_id, change_label, subject_text, change_message_html, actor_user_id, change_type='status_change')
 
 def notify_on_comment(ticket_id, actor_user_id, comment_preview):
-    safe_preview = comment_preview[:200] + "..." if len(comment_preview) > 200 else comment_preview
+    preview = comment_preview[:200] + "..." if len(comment_preview) > 200 else comment_preview
+    safe_preview = escape(str(preview))
     change_label = "New Comment Added"
     subject_text = "New Comment"
     change_message_html = f"""
@@ -577,7 +590,7 @@ def notify_on_attachment(ticket_id, actor_user_id, filename):
             <strong>ðŸ“Ž A new file has been attached to this ticket:</strong>
         </p>
         <p style="margin: 10px 0 0 0; color: #666; font-size: 14px;">
-            {filename}
+            {escape(str(filename))}
         </p>
     """
     _notify(ticket_id, change_label, subject_text, change_message_html, actor_user_id, change_type='attachment')

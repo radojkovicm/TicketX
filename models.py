@@ -1,10 +1,11 @@
-from database import Database
-from security import verify_password, hash_password, is_legacy_hash
-import hashlib
 import os
 import logging
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from contextlib import contextmanager
+
+from database import Database
+from security import hash_password, is_legacy_hash, verify_password
 
 class UserModel:
     """
@@ -237,8 +238,7 @@ class TicketModel:
             cursor = conn.cursor()
             
             try:
-                import pytz
-                tz = pytz.timezone(timezone_str)
+                tz = ZoneInfo(timezone_str)
                 updated_at = datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')
             except Exception as e:
                 logging.warning(f"Timezone error: {e}, using system time")

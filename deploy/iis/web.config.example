@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <system.webServer>
+    <handlers>
+      <add name="Python FastCGI"
+           path="*"
+           verb="*"
+           modules="FastCgiModule"
+           scriptProcessor="C:\path\to\TicketX\.venv\Scripts\python.exe|C:\path\to\TicketX\.venv\Lib\site-packages\wfastcgi.py"
+           resourceType="Unspecified"
+           requireAccess="Script" />
+    </handlers>
+  </system.webServer>
+  <appSettings>
+    <add key="PYTHONPATH" value="C:\path\to\TicketX" />
+    <add key="WSGI_HANDLER" value="app.app" />
+    <add key="WSGI_LOG" value="C:\path\to\TicketX\logs\wfastcgi.log" />
+  </appSettings>
+</configuration>
