@@ -1,7 +1,7 @@
 # Secrets & config
 .env
 
-# Databases (sadrže podatke korisnika i hešove lozinki)
+# Databases (contain user data and password hashes)
 *.db
 *.db-wal
 *.db-shm
@@ -28,6 +28,13 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Ephemeral / scratch fajlovi
+# Tests and tooling
+.coverage
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+.quality-venv/
+
+# Legacy local scratch files
 requirements_new.txt
 old-web-config.txt
