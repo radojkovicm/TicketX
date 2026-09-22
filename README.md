@@ -4,6 +4,22 @@
 
 TicketX is a self-hosted helpdesk and ticketing application for internal IT and cross-department support. It provides role-based workflows, private tickets, comments, attachments, watchers, email notifications and an audit trail in a compact Flask + SQLite deployment.
 
+## Screenshots
+
+All screenshots below use synthetic demo users, tickets and `example.com` email addresses. No production or customer data is shown.
+
+### Ticket dashboard
+
+![TicketX dashboard with synthetic tickets](docs/screenshots/dashboard.png)
+
+### Ticket workflow and collaboration
+
+![TicketX ticket detail with synthetic comments and watchers](docs/screenshots/ticket-detail.png)
+
+### Administration
+
+![TicketX administration panel with synthetic users](docs/screenshots/admin-panel.png)
+
 ## Features
 
 - Ticket creation, assignment, priorities, due dates and status workflow
