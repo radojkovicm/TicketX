@@ -2,7 +2,6 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}Ticket System{% endblock %}</title>
     <script>
@@ -69,11 +68,6 @@
     }
     </style>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <script>
-    window.addEventListener('beforeunload', function() {
-        navigator.sendBeacon('/logout_session');
-    });
-    </script>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
@@ -88,7 +82,9 @@
                 {% endif %}
                 <!-- My Profile nav-link (opens user data change form) -->
                 <a class="nav-link" href="{{ url_for('my_profile') }}">My Profile</a>
-                <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+                <form method="POST" action="{{ url_for('logout') }}" class="d-inline">
+                    <button type="submit" class="nav-link btn btn-link border-0">Logout</button>
+                </form>
             </div>
             {% endif %}
         </div>

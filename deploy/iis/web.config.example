@@ -2,7 +2,13 @@
 <configuration>
   <system.webServer>
     <handlers>
-      <add name="Python FastCGI" path="*" verb="*" modules="FastCgiModule" scriptProcessor="C:\path\to\TicketX\venv\Scripts\python.exe|C:\path\to\TicketX\venv\Lib\site-packages\wfastcgi.py" resourceType="Unspecified" requireAccess="Script" />
+      <add name="Python FastCGI"
+           path="*"
+           verb="*"
+           modules="FastCgiModule"
+           scriptProcessor="C:\path\to\TicketX\.venv\Scripts\python.exe|C:\path\to\TicketX\.venv\Lib\site-packages\wfastcgi.py"
+           resourceType="Unspecified"
+           requireAccess="Script" />
     </handlers>
   </system.webServer>
   <appSettings>

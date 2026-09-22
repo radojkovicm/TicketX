@@ -1,105 +1,87 @@
-
+import logging
 import os
 import smtplib
+import ssl
 from email.mime.text import MIMEText
 from email.utils import formataddr
 
+
+logger = logging.getLogger(__name__)
+
+
 def _get_bool(name: str, default: bool) -> bool:
-    val = os.getenv(name)
-    if val is None:
+    value = os.getenv(name)
+    if value is None:
         return default
-    return str(val).strip().lower() in ("1", "true", "yes", "y")
+    return value.strip().lower() in {"1", "true", "yes", "y"}
 
-def _send_via(host: str, port: int, use_ssl: bool, use_starttls: bool, username: str, password: str,
-              from_email: str, from_name: str, to_emails, subject: str, html_body: str) -> bool:
-    print(f"[mailer] Connecting to {host}:{port} SSL={use_ssl} STARTTLS={use_starttls}")
-    msg = MIMEText(html_body or "", "html", "utf-8")
-    msg["Subject"] = subject or ""
-    msg["From"] = formataddr((from_name, from_email))
-    msg["To"] = ", ".join(to_emails)
 
-    server = None
-    try:
-        if use_ssl:
-            server = smtplib.SMTP_SSL(host, port, timeout=20)
-            server.ehlo()
-        else:
-            server = smtplib.SMTP(host, port, timeout=20)
-            server.ehlo()
-            if use_starttls:
-                server.starttls()
-                server.ehlo()
+def _clean_header(value: str) -> str:
+    return str(value or "").replace("\r", " ").replace("\n", " ").strip()
 
-        if username and password:
-            server.login(username, password)
-
-        server.sendmail(from_email, to_emails, msg.as_string())
-        print(f"[mailer] Sent to {to_emails}")
-        return True
-    except Exception as e:
-        print(f"[mailer] ERROR on {host}:{port} SSL={use_ssl} STARTTLS={use_starttls} -> {e}")
-        return False
-    finally:
-        try:
-            if server:
-                server.quit()
-        except Exception:
-            pass
 
 def send_email(to_emails, subject, html_body):
-    
-    print(f"[debug][mailer:send_email] enter to={to_emails} subject={subject}")
-    # Read ENV at call-time to avoid stale values loaded at import.
+    """Send one HTML email using only the explicitly configured SMTP server."""
     if not to_emails:
-        print("[mailer] No recipients, skipping.")
         return False
     if isinstance(to_emails, str):
         to_emails = [to_emails]
 
+    recipients = [_clean_header(address) for address in to_emails if _clean_header(address)]
     host = (os.getenv("SMTP_SERVER") or "").strip()
     port_raw = (os.getenv("SMTP_PORT") or "").strip()
     username = (os.getenv("SMTP_USERNAME") or "").strip()
     password = (os.getenv("SMTP_PASSWORD") or "").strip()
-    from_email = (os.getenv("SMTP_SENDER_EMAIL") or username).strip()
-    from_name = (os.getenv("SMTP_SENDER_NAME") or "Ticketx System").strip()
+    from_email = _clean_header(os.getenv("SMTP_SENDER_EMAIL") or username)
+    from_name = _clean_header(os.getenv("SMTP_SENDER_NAME") or "TicketX")
 
-    if not host:
-        print("[mailer] Missing SMTP_SERVER")
+    if not host or not recipients or not from_email:
+        logger.warning("Email skipped because SMTP configuration or recipients are incomplete.")
         return False
+
     try:
-        port = int(port_raw) if port_raw else 0
+        port = int(port_raw)
     except ValueError:
-        print(f"[mailer] Invalid SMTP_PORT: {port_raw}")
+        logger.error("SMTP_PORT must be an integer.")
         return False
-    if port <= 0:
-        print("[mailer] Missing or invalid SMTP_PORT")
+    if not 1 <= port <= 65535:
+        logger.error("SMTP_PORT is outside the valid range.")
         return False
 
     use_ssl = _get_bool("SMTP_USE_SSL", False)
     use_tls = _get_bool("SMTP_USE_TLS", True)
+    if use_ssl and use_tls:
+        logger.error("SMTP_USE_SSL and SMTP_USE_TLS cannot both be enabled.")
+        return False
 
-    # First attempt: exactly what .env says
-    if _send_via(host, port, use_ssl=use_ssl, use_starttls=(not use_ssl and use_tls),
-                 username=username, password=password,
-                 from_email=from_email, from_name=from_name,
-                 to_emails=to_emails, subject=subject, html_body=html_body):
+    message = MIMEText(html_body or "", "html", "utf-8")
+    message["Subject"] = _clean_header(subject)
+    message["From"] = formataddr((from_name, from_email))
+    message["To"] = ", ".join(recipients)
+    tls_context = ssl.create_default_context()
+
+    server = None
+    try:
+        if use_ssl:
+            server = smtplib.SMTP_SSL(host, port, timeout=20, context=tls_context)
+        else:
+            server = smtplib.SMTP(host, port, timeout=20)
+            server.ehlo()
+            if use_tls:
+                server.starttls(context=tls_context)
+                server.ehlo()
+
+        if username and password:
+            server.login(username, password)
+        server.sendmail(from_email, recipients, message.as_string())
+        logger.info("Email sent to %d recipient(s).", len(recipients))
         return True
-
-    # Fallbacks for Gmail common setups
-    if not (host == "smtp.gmail.com" and port == 587):
-        print("[mailer] Fallback: trying Gmail 587 STARTTLS")
-        if _send_via("smtp.gmail.com", 587, use_ssl=False, use_starttls=True,
-                     username=username, password=password,
-                     from_email=from_email, from_name=from_name,
-                     to_emails=to_emails, subject=subject, html_body=html_body):
-            return True
-
-    print("[mailer] Fallback: trying Gmail 465 SSL")
-    if _send_via("smtp.gmail.com", 465, use_ssl=True, use_starttls=False,
-                 username=username, password=password,
-                 from_email=from_email, from_name=from_name,
-                 to_emails=to_emails, subject=subject, html_body=html_body):
-        return True
-
-    print("[mailer] All attempts failed.")
-    return False
+    except (OSError, smtplib.SMTPException):
+        logger.exception("SMTP delivery failed for configured server %s:%s.", host, port)
+        return False
+    finally:
+        if server is not None:
+            try:
+                server.quit()
+            except (OSError, smtplib.SMTPException):
+                server.close()

@@ -33,7 +33,7 @@
                         {{ ticket[14] or 'IT' }}
                     </div>
 
-                    {% if (session.user_id|string) == (ticket[7]|string) or session.role == 'admin' or (session.user_id|string)==(ticket[6]|string) or session.user_id in watchers|map(attribute=0)|list %}
+                    {% if can_manage %}
                     <div class="mt-3">
                         <form method="POST" action="{{ url_for('reassign_ticket', ticket_id=ticket[0]) }}" class="d-flex align-items-center gap-2">
                             <label class="mb-0">Reassign to:</label>
@@ -41,8 +41,7 @@
                             <option value="">Select user</option>
                             {% if session.role == 'admin' and it_admins %}
                             <optgroup label="IT Admins">
-                                <!-- 'IT' option -> stored as NULL in DB -->
-                                <option value="IT" {% if ticket[7] is none %}selected{% endif %}>IT (Unassigned)</option>
+                                <option value="IT" {% if ticket[7] is none or ticket[7] == 'IT' %}selected{% endif %}>IT (Unassigned)</option>
 
                                 {% for admin in it_admins %}
                                 <option value="{{ admin[0] }}" {% if admin[0]|string == ticket[7]|string %}selected{% endif %}>{{ admin[1] }}</option>
@@ -120,7 +119,7 @@
                 </div>
                     {% set is_watcher = watchers|selectattr(0, "equalto", session.user_id)|list|length > 0 %}
 
-                    {% if session.role=='admin' or (session.user_id|string)==(ticket[6]|string) or (session.user_id|string)==(ticket[7]|string) or is_watcher %}
+                    {% if can_manage %}
                     <div class="col-md-12 mb-3">
                         <form method="POST" action="{{ url_for('add_watchers', ticket_id=ticket[0]) }}">
                             <div class="position-relative">
@@ -201,7 +200,9 @@
                         {% endif %}
 
                         {% if ticket[5] in ['new', 'assigned'] and (session.user_id != ticket[7] or session.role == 'admin') %}
+                        {% if can_manage %}
                         <a href="{{ url_for('edit_ticket', ticket_id=ticket[0]) }}" class="btn btn-outline-warning">Edit Ticket</a>
+                        {% endif %}
                         {% endif %}
                     </div>
                 </div>
