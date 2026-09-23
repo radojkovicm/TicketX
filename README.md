@@ -148,6 +148,20 @@ TicketX/
 
 Do not expose Flask's built-in development server directly to the internet. Terminate HTTPS at IIS, nginx, Caddy or another trusted reverse proxy, set `IS_HTTPS=true`, and ensure only the application process can read `.env`, the SQLite database and `UPLOAD_FOLDER`.
 
+### Read-only portfolio demo on Vercel
+
+TicketX includes an optional disposable demo mode for public portfolio deployments. Normal local installations are unchanged because demo mode is disabled by default.
+
+Set these environment variables in the Vercel project:
+
+```text
+DEMO_MODE=true
+FLASK_SECRET_KEY=<a generated random value>
+IS_HTTPS=true
+```
+
+When enabled, TicketX creates a synthetic SQLite database under Vercel's writable `/tmp` directory. The public account can browse the application, but state-changing requests, uploads and email delivery are disabled. No local database, `.env` file or uploaded attachment is included in the deployment.
+
 For IIS, install `requirements-iis.txt`, copy `deploy/iis/web.config.example` to `web.config`, and replace every placeholder path. SQLite is suitable for a small single-server installation; a larger multi-instance deployment should move persistence and login throttling to shared services.
 
 Back up the database and upload directory together. Restoring only one of them can leave attachment records without files or files without records.
