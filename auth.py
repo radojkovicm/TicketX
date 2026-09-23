@@ -4,8 +4,25 @@ import time
 import logging
 import os
 
+
+def _get_positive_int_env(name, default):
+    """Read a positive integer environment value, tolerating blank platform settings."""
+    raw_value = (os.getenv(name) or "").strip()
+    if not raw_value:
+        return default
+    try:
+        value = int(raw_value)
+    except ValueError:
+        logging.warning("%s must be a positive integer; using %s.", name, default)
+        return default
+    if value <= 0:
+        logging.warning("%s must be a positive integer; using %s.", name, default)
+        return default
+    return value
+
+
 # Session timeout in seconds (default 1 hour)
-SESSION_TIMEOUT = int(os.getenv('SESSION_TIMEOUT_SECONDS', 3600))
+SESSION_TIMEOUT = _get_positive_int_env('SESSION_TIMEOUT_SECONDS', 3600)
 
 def check_session_timeout():
     """
