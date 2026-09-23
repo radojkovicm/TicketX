@@ -12,6 +12,7 @@ Explore the read-only portfolio demo at **[ticketx-demo.vercel.app](https://tick
 
 - Username: `demo_admin`
 - Password: `TicketXDemo!2026`
+- Synthetic demo accounts use the `@milosradojkovic.dev` domain.
 - All users, tickets, comments and email addresses are synthetic.
 - Data-changing actions, file uploads and email delivery are disabled.
 - The hosted database is disposable; the standard local installation remains fully functional.
