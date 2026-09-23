@@ -15,10 +15,25 @@ from werkzeug.exceptions import HTTPException
 
 load_dotenv()
 
+DEMO_MODE = os.getenv("DEMO_MODE", "false").strip().lower() == "true"
+DEMO_USERNAME = os.getenv("DEMO_USERNAME", "demo_admin")
+DEMO_PASSWORD = os.getenv("DEMO_PASSWORD", "TicketXDemo!2026")
+
+if DEMO_MODE:
+    os.environ["DB_PATH"] = os.getenv("DEMO_DB_PATH", "/tmp/ticketx-demo.db")
+    os.environ["UPLOAD_FOLDER"] = os.getenv("DEMO_UPLOAD_FOLDER", "/tmp/ticketx-uploads")
+    os.environ["DISABLE_INITIAL_ADMIN_CREATION"] = "true"
+    os.environ["ENABLE_ASYNC_EMAIL"] = "false"
+
 from auth import admin_required, get_redirect_target, login_required  # noqa: E402
 from database import Database  # noqa: E402
 from models import CategoryModel, TicketModel, UserModel  # noqa: E402
 from security import hash_password  # noqa: E402
+
+if DEMO_MODE:
+    from demo_data import ensure_demo_database  # noqa: E402
+
+    ensure_demo_database(os.environ["DB_PATH"], DEMO_USERNAME, DEMO_PASSWORD)
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
@@ -302,6 +317,19 @@ category_model = CategoryModel()
 
 
 @app.before_request
+def protect_public_demo():
+    """Keep the shared portfolio demo deterministic and safe for every visitor."""
+    if not DEMO_MODE or request.method in {"GET", "HEAD", "OPTIONS"}:
+        return None
+    if request.endpoint in {"login", "logout"}:
+        return None
+
+    flash("This public portfolio demo is read-only. Run TicketX locally to test changes.", "info")
+    target = request.referrer or url_for("dashboard" if session.get("user_id") else "login")
+    return redirect(target, code=303)
+
+
+@app.before_request
 def refresh_authenticated_user():
     """Keep authorization data in the signed session synchronized with the database."""
     user_id = session.get('user_id')
@@ -322,7 +350,10 @@ def inject_now():
     """Make datetime.now() available in all templates"""
     return {
         'now': datetime.now,
-        'datetime': datetime
+        'datetime': datetime,
+        'demo_mode': DEMO_MODE,
+        'demo_username': DEMO_USERNAME,
+        'demo_password': DEMO_PASSWORD,
     }
 # ==== END JINJA2 GLOBALS ====
 
