@@ -314,6 +314,17 @@ class TicketXSecurityTests(unittest.TestCase):
             self.assertEqual(after, before)
             self.assertEqual(self.client.post("/logout").status_code, 302)
 
+    def test_demo_login_credentials_are_clear_and_persistent(self):
+        with patch.object(ticketx, "DEMO_MODE", True):
+            response = self.client.get("/login")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"No typing is required", response.data)
+        self.assertIn(b"demo_admin", response.data)
+        self.assertIn(b"TicketXDemo!2026", response.data)
+        self.assertIn(b"@milosradojkovic.dev", response.data)
+        self.assertIn(b"Open the live demo", response.data)
+
 
 if __name__ == "__main__":
     unittest.main()

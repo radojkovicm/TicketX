@@ -4,8 +4,9 @@ window.addEventListener('beforeunload', function() {
 });
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Auto-hide alerts after 5 seconds
-    const alerts = document.querySelectorAll('.alert');
+    // Auto-hide only dismissible flash messages. Persistent page guidance and
+    // demo credentials must remain visible until the visitor navigates away.
+    const alerts = document.querySelectorAll('.alert.alert-dismissible');
     alerts.forEach(function(alert) {
         setTimeout(function() {
             const bsAlert = new bootstrap.Alert(alert);
