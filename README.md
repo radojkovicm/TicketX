@@ -4,6 +4,18 @@
 
 TicketX is a self-hosted helpdesk and ticketing application for internal IT and cross-department support. It provides role-based workflows, private tickets, comments, attachments, watchers, email notifications and an audit trail in a compact Flask + SQLite deployment.
 
+[![Live Demo](https://img.shields.io/badge/Live_Demo-ticketx--demo.vercel.app-000000?style=for-the-badge&logo=vercel)](https://ticketx-demo.vercel.app)
+
+## Live demo
+
+Explore the read-only portfolio demo at **[ticketx-demo.vercel.app](https://ticketx-demo.vercel.app)**.
+
+- Username: `demo_admin`
+- Password: `TicketXDemo!2026`
+- All users, tickets, comments and email addresses are synthetic.
+- Data-changing actions, file uploads and email delivery are disabled.
+- The hosted database is disposable; the standard local installation remains fully functional.
+
 ## Screenshots
 
 All screenshots below use synthetic demo users, tickets and `example.com` email addresses. No production or customer data is shown.
