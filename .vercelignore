@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+*.db
+*.db-wal
+*.db-shm
+uploads/
+static/uploads/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+logs/
+*.log
+tests/
+docs/screenshots/

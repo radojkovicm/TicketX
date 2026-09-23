@@ -10,7 +10,21 @@
                 <h4>Login</h4>
             </div>
             <div class="card-body">
-                <form method="POST">
+                {% if demo_mode %}
+                <div class="alert alert-info">
+                    <strong>Portfolio demo</strong>
+                    <p class="mb-2">Explore TicketX with a synthetic administrator account. The demo is read-only and contains no production data.</p>
+                    <div><strong>Username:</strong> <code>{{ demo_username }}</code></div>
+                    <div><strong>Password:</strong> <code>{{ demo_password }}</code></div>
+                    <form method="POST" class="demo-auth-form mt-3">
+                        <input type="hidden" name="username" value="{{ demo_username }}">
+                        <input type="hidden" name="password" value="{{ demo_password }}">
+                        <button type="submit" class="btn btn-success w-100">Try the live demo</button>
+                    </form>
+                </div>
+                {% endif %}
+
+                <form method="POST" class="demo-auth-form">
                     <div class="mb-3">
                         <label for="username" class="form-label">Username</label>
                         <input type="text" class="form-control" id="username" name="username" required>

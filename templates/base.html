@@ -82,13 +82,20 @@
                 {% endif %}
                 <!-- My Profile nav-link (opens user data change form) -->
                 <a class="nav-link" href="{{ url_for('my_profile') }}">My Profile</a>
-                <form method="POST" action="{{ url_for('logout') }}" class="d-inline">
+                <form method="POST" action="{{ url_for('logout') }}" class="d-inline demo-auth-form">
                     <button type="submit" class="nav-link btn btn-link border-0">Logout</button>
                 </form>
             </div>
             {% endif %}
         </div>
     </nav>
+
+    {% if demo_mode %}
+    <div class="alert alert-warning rounded-0 border-0 text-center mb-0" role="status">
+        <strong>Public read-only demo.</strong>
+        All displayed users and tickets are synthetic. Changes, uploads and email delivery are disabled.
+    </div>
+    {% endif %}
 
     <div class="{% block container_class %}container-xxl{% endblock %} mt-4">
         {% with messages = get_flashed_messages(with_categories=true) %}

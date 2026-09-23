@@ -293,6 +293,27 @@ class TicketXSecurityTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 429)
 
+    def test_demo_mode_is_read_only_but_allows_browsing_and_logout(self):
+        self.login_as(1)
+        with patch.object(ticketx, "DEMO_MODE", True):
+            dashboard = self.client.get("/dashboard")
+            self.assertEqual(dashboard.status_code, 200)
+            self.assertIn(b"Public read-only demo", dashboard.data)
+
+            with closing(sqlite3.connect(TEST_DB)) as conn:
+                before = conn.execute("SELECT COUNT(*) FROM comments WHERE ticket_id = 2").fetchone()[0]
+
+            blocked = self.client.post(
+                "/add_comment",
+                data={"ticket_id": 2, "comment": "This must not be stored"},
+            )
+            self.assertEqual(blocked.status_code, 303)
+
+            with closing(sqlite3.connect(TEST_DB)) as conn:
+                after = conn.execute("SELECT COUNT(*) FROM comments WHERE ticket_id = 2").fetchone()[0]
+            self.assertEqual(after, before)
+            self.assertEqual(self.client.post("/logout").status_code, 302)
+
 
 if __name__ == "__main__":
     unittest.main()
