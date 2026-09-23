@@ -1,6 +1,8 @@
 """Synthetic, disposable data used only by the public portfolio demo."""
 
 import sqlite3
+import threading
+from contextlib import closing
 from pathlib import Path
 
 from database import Database
@@ -9,23 +11,37 @@ from security import hash_password
 
 DEMO_USERNAME = "demo_admin"
 DEMO_PASSWORD = "TicketXDemo!2026"
+DEMO_EMAIL_DOMAIN = "milosradojkovic.dev"
+_DEMO_DATABASE_LOCK = threading.Lock()
 
 
 def ensure_demo_database(db_path, username=DEMO_USERNAME, password=DEMO_PASSWORD):
-    """Create a deterministic demo database if the disposable copy is missing."""
+    """Create or restore the deterministic disposable demo database."""
+    with _DEMO_DATABASE_LOCK:
+        return _ensure_demo_database(db_path, username, password)
+
+
+def _ensure_demo_database(db_path, username, password):
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
     if path.exists():
         try:
-            with sqlite3.connect(path) as connection:
+            with closing(sqlite3.connect(path)) as connection:
                 user_count = connection.execute("SELECT COUNT(*) FROM users").fetchone()[0]
                 ticket_count = connection.execute("SELECT COUNT(*) FROM tickets").fetchone()[0]
-            if user_count >= 5 and ticket_count >= 6:
+                emails = [row[0] for row in connection.execute("SELECT email FROM users")]
+            if (
+                user_count >= 5
+                and ticket_count >= 6
+                and emails
+                and all(email.endswith(f"@{DEMO_EMAIL_DOMAIN}") for email in emails)
+            ):
                 return path
         except sqlite3.Error:
-            pass
-        path.unlink(missing_ok=True)
+            path.unlink(missing_ok=True)
+        else:
+            _reset_demo_content(path)
 
     Database(str(path))
     connection = sqlite3.connect(path)
@@ -48,11 +64,11 @@ def ensure_demo_database(db_path, username=DEMO_USERNAME, password=DEMO_PASSWORD
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
-            (1, username, password_hash, "alex.carter@example.com", "Alex Carter", "admin", departments["IT Department"], 0),
-            (2, "morgan.reed", password_hash, "morgan.reed@example.com", "Morgan Reed", "user", departments["Operations"], 1),
-            (3, "jamie.chen", password_hash, "jamie.chen@example.com", "Jamie Chen", "user", departments["Finance"], 0),
-            (4, "taylor.brooks", password_hash, "taylor.brooks@example.com", "Taylor Brooks", "user", departments["HR"], 1),
-            (5, "sam.rivera", password_hash, "sam.rivera@example.com", "Sam Rivera", "admin", departments["IT Department"], 0),
+            (1, username, password_hash, f"alex.carter@{DEMO_EMAIL_DOMAIN}", "Alex Carter", "admin", departments["IT Department"], 0),
+            (2, "morgan.reed", password_hash, f"morgan.reed@{DEMO_EMAIL_DOMAIN}", "Morgan Reed", "user", departments["Operations"], 1),
+            (3, "jamie.chen", password_hash, f"jamie.chen@{DEMO_EMAIL_DOMAIN}", "Jamie Chen", "user", departments["Finance"], 0),
+            (4, "taylor.brooks", password_hash, f"taylor.brooks@{DEMO_EMAIL_DOMAIN}", "Taylor Brooks", "user", departments["HR"], 1),
+            (5, "sam.rivera", password_hash, f"sam.rivera@{DEMO_EMAIL_DOMAIN}", "Sam Rivera", "admin", departments["IT Department"], 0),
         ],
     )
 
@@ -117,3 +133,23 @@ def ensure_demo_database(db_path, username=DEMO_USERNAME, password=DEMO_PASSWORD
     connection.commit()
     connection.close()
     return path
+
+
+def _reset_demo_content(path):
+    """Clear only disposable demo records without replacing a locked SQLite file."""
+    tables = (
+        "attachments",
+        "comments",
+        "ticket_activity_log",
+        "ticket_watchers",
+        "activity_logs",
+        "ticket_templates",
+        "ticket_muted_users",
+        "tickets",
+        "users",
+    )
+    with closing(sqlite3.connect(path)) as connection:
+        connection.execute("PRAGMA foreign_keys=OFF")
+        for table in tables:
+            connection.execute(f"DELETE FROM {table}")
+        connection.commit()

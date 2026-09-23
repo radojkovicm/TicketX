@@ -131,8 +131,8 @@
                             <i class="bi bi-funnel"></i> Show tickets assigned to:
                         </label>
                         <select class="form-select form-select-sm" id="browseAssignedFilter">
-                            <option value="IT" selected>IT (Unassigned)</option>
-                            <option value="">All Users</option>
+                            <option value="" {% if demo_mode %}selected{% endif %}>All Users</option>
+                            <option value="IT" {% if not demo_mode %}selected{% endif %}>IT (Unassigned)</option>
                             <optgroup label="IT Admins">
                                 {% for admin in it_admins %}
                                 <option value="{{ admin[0] }}">{{ admin[1] }}</option>

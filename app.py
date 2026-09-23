@@ -27,12 +27,11 @@ if DEMO_MODE:
 
 from auth import admin_required, get_redirect_target, login_required  # noqa: E402
 from database import Database  # noqa: E402
+from demo_data import ensure_demo_database  # noqa: E402
 from models import CategoryModel, TicketModel, UserModel  # noqa: E402
 from security import hash_password  # noqa: E402
 
 if DEMO_MODE:
-    from demo_data import ensure_demo_database  # noqa: E402
-
     ensure_demo_database(os.environ["DB_PATH"], DEMO_USERNAME, DEMO_PASSWORD)
 
 logging.basicConfig(level=logging.INFO)
@@ -314,6 +313,13 @@ from notifications import (
 user_model = UserModel()
 ticket_model = TicketModel()
 category_model = CategoryModel()
+
+
+@app.before_request
+def restore_public_demo_data():
+    """Recreate disposable Vercel demo data if a serverless instance loses /tmp."""
+    if DEMO_MODE:
+        ensure_demo_database(os.environ["DB_PATH"], DEMO_USERNAME, DEMO_PASSWORD)
 
 
 @app.before_request
