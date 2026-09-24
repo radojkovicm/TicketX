@@ -19,7 +19,7 @@ Explore the read-only portfolio demo at **[ticketx-demo.vercel.app](https://tick
 
 ## Screenshots
 
-All screenshots below use synthetic demo users, tickets and `example.com` email addresses. No production or customer data is shown.
+All screenshots below use the synthetic demo data (users with `@milosradojkovic.dev` addresses). No production or customer data is shown.
 
 ### Ticket dashboard
 
@@ -33,6 +33,10 @@ All screenshots below use synthetic demo users, tickets and `example.com` email 
 
 ![TicketX administration panel with synthetic users](docs/screenshots/admin-panel.png)
 
+### Dark mode
+
+![TicketX dashboard in dark mode](docs/screenshots/dashboard-dark.png)
+
 ## Features
 
 - Ticket creation, assignment, priorities, due dates and status workflow
@@ -44,13 +48,14 @@ All screenshots below use synthetic demo users, tickets and `example.com` email 
 - Administrative user, department, category and activity-log views
 - Automatic migration of legacy SHA-256 password hashes after a valid login
 - CSRF protection, secure session cookies, security headers and login throttling
+- Modern responsive interface with light/dark theme, dashboard summary cards and keyboard search (`/`)
 
 ## Technology
 
 - Python 3.11+
 - Flask 3
 - SQLite in WAL mode
-- Jinja templates and Bootstrap 5
+- Jinja templates, Bootstrap 5.3 and Bootstrap Icons
 - OpenPyXL for `.xlsx` user imports
 
 ## Quick start

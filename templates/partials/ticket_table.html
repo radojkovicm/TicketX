@@ -1,15 +1,15 @@
 {% if tickets %}
 <div class="table-card">
 <div class="table-responsive">
-    <table class="table table-hover align-middle">
-        <thead class="sticky-top">
+    <table class="table table-hover align-middle ticket-table">
+        <thead>
             <tr>
-                <th style="width: 34%;">Ticket</th>
+                <th>Ticket</th>
                 <th style="width: 120px;">Status</th>
                 <th style="width: 100px;">Priority</th>
-                <th>Requester</th>
+                <th class="d-none d-xl-table-cell">Requester</th>
                 <th>Assignee</th>
-                <th style="width: 110px;">Updated</th>
+                <th class="d-none d-xxl-table-cell" style="width: 130px;">Updated</th>
                 <th style="width: 90px;">Due</th>
                 <th style="width: 56px;" class="text-end"><span class="visually-hidden">Actions</span></th>
             </tr>
@@ -26,11 +26,11 @@
             {% set st = status_map.get(ticket[3], ('pill-gray', (ticket[3] or '')|replace('_', ' ')|title)) %}
             <tr data-assigned-to="{{ ticket[7]|string if ticket[7] else 'IT' }}" class="ticket-row">
                 <!-- Ticket -->
-                <td>
+                <td class="ticket-cell">
                     {% set title = ticket[1]|string if ticket[1] else '' %}
-                    <div class="d-flex align-items-baseline gap-2">
+                    <div class="d-flex align-items-baseline gap-2 min-w-0">
                         <a href="{{ url_for('ticket_detail', ticket_id=ticket[0]) }}" class="ticket-id">#{{ ticket[0] }}</a>
-                        <a href="{{ url_for('ticket_detail', ticket_id=ticket[0]) }}" class="ticket-title text-truncate" style="max-width: 420px;" title="{{ title }}">
+                        <a href="{{ url_for('ticket_detail', ticket_id=ticket[0]) }}" class="ticket-title text-truncate" title="{{ title }}">
                             {% if title %}{{ title }}{% else %}<em class="text-muted">No title</em>{% endif %}
                         </a>
                     </div>
@@ -54,7 +54,7 @@
                 </td>
 
                 <!-- Requester -->
-                <td>
+                <td class="d-none d-xl-table-cell">
                     {% if ticket[10] %}
                     <span class="person" title="{{ ticket[10] }}">
                         <span class="avatar avatar-sm">{{ (ticket[10].split()|map('first')|join|upper)[:2] }}</span>
@@ -76,7 +76,7 @@
                 </td>
 
                 <!-- Updated -->
-                <td class="date-cell" title="Created {{ (ticket[4]|string)[:16] if ticket[4] else '—' }}">
+                <td class="date-cell d-none d-xxl-table-cell" title="Created {{ (ticket[4]|string)[:16] if ticket[4] else '—' }}">
                     {{ (ticket[5]|string)[:16] if ticket[5] else '—' }}
                 </td>
 
@@ -103,7 +103,8 @@
                         <button class="btn btn-icon btn-sm row-actions" 
                                 type="button" 
                                 id="actionsDropdown{{ ticket[0] }}" 
-                                data-bs-toggle="dropdown" 
+                                data-bs-toggle="dropdown"
+                                data-bs-popper-config='{"strategy":"fixed"}' 
                                 aria-expanded="false">
                             <i class="bi bi-three-dots-vertical"></i>
                         </button>
@@ -378,59 +379,12 @@ function showAssignITModal(element) {
 {% endif %}
 
 <style>
-.table-responsive { overflow: visible !important; }
-.app-main thead.sticky-top { top: var(--tx-topbar-height); z-index: 5; }
 .ticket-row:has(.dropdown.show) { background-color: var(--tx-surface-hover) !important; }
 .row-actions { width: 30px; height: 30px; font-size: 1rem; }
 .row-actions::after { display: none; }
 .dropdown-menu { z-index: 1050 !important; min-width: 250px; }
-.dropdown.dropup .dropdown-menu { top: auto !important; bottom: 100% !important; transform: translateY(-0.35rem) !important; }
 .dropdown-item { cursor: pointer; white-space: nowrap; }
 .dropdown-menu form { margin: 0; }
 .dropdown-menu form .dropdown-item { width: 100%; text-align: left; }
 </style>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  // Dodaje .dropup ako dropdown ne stane ispod u viewportu
-  const dropdowns = document.querySelectorAll('.dropdown');
-
-  dropdowns.forEach(dd => {
-    dd.addEventListener('shown.bs.dropdown', function() {
-      const menu = dd.querySelector('.dropdown-menu');
-      if (!menu) return;
-
-      // getBoundingClientRect AFTER it's displayed (Bootstrap adds .show)
-      const rect = menu.getBoundingClientRect();
-      const viewportH = window.innerHeight || document.documentElement.clientHeight;
-
-      // margin sigurnosti (px)
-      const buffer = 8;
-
-      // Ako dno menija prelazi viewport -> otvori gore
-      if (rect.bottom > viewportH - buffer) {
-        dd.classList.add('dropup');
-      } else {
-        dd.classList.remove('dropup');
-      }
-    });
-
-    // obriši klasu kad se zatvori
-    dd.addEventListener('hidden.bs.dropdown', function() {
-      dd.classList.remove('dropup');
-    });
-
-    // Također re-proveravaj pri resize-u ako je meni otvoren
-    window.addEventListener('resize', function() {
-      if (dd.classList.contains('show') || dd.querySelector('.dropdown-menu').classList.contains('show')) {
-        const menu = dd.querySelector('.dropdown-menu');
-        const rect = menu.getBoundingClientRect();
-        const viewportH = window.innerHeight || document.documentElement.clientHeight;
-        const buffer = 8;
-        if (rect.bottom > viewportH - buffer) dd.classList.add('dropup');
-        else dd.classList.remove('dropup');
-      }
-    });
-  });
-});
-</script>
