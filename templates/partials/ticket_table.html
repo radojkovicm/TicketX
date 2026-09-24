@@ -1,187 +1,110 @@
 {% if tickets %}
+<div class="table-card">
 <div class="table-responsive">
-    <table class="table table-hover table-sm align-middle">
-        <thead class="table-light sticky-top">
+    <table class="table table-hover align-middle ticket-table">
+        <thead>
             <tr>
-                <th style="width: 50px;" class="text-center">ID</th>
-                <th style="width: 25%;">Title</th>
-                <th style="width: 90px;" class="text-center">Priority</th>
-                <th style="width: 110px;" class="text-center">Status</th>
-                <th style="width: 12%;">Category</th>
-                <th style="width: 12%;">Created By</th>
-                <th style="width: 12%;">Assigned To</th>
-                <th style="width: 105px;">Created</th>
-                <th style="width: 105px;">Updated</th>
-                <th style="width: 95px;">Due Date</th>
-                <th style="width: 80px;" class="text-center">Actions</th>
+                <th>Ticket</th>
+                <th style="width: 120px;">Status</th>
+                <th style="width: 100px;">Priority</th>
+                <th class="d-none d-xl-table-cell">Requester</th>
+                <th>Assignee</th>
+                <th class="d-none d-xxl-table-cell" style="width: 130px;">Updated</th>
+                <th style="width: 90px;">Due</th>
+                <th style="width: 56px;" class="text-end"><span class="visually-hidden">Actions</span></th>
             </tr>
         </thead>
         <tbody>
+            {% set status_map = {
+                'new': ('pill-gray', 'New'),
+                'assigned': ('pill-indigo', 'Assigned'),
+                'in_progress': ('pill-blue', 'In progress'),
+                'awaiting_confirmation': ('pill-orange', 'Awaiting'),
+                'closed': ('pill-green', 'Closed'),
+            } %}
             {% for ticket in tickets %}
+            {% set st = status_map.get(ticket[3], ('pill-gray', (ticket[3] or '')|replace('_', ' ')|title)) %}
             <tr data-assigned-to="{{ ticket[7]|string if ticket[7] else 'IT' }}" class="ticket-row">
-                <!-- Ticket ID -->
-                <td class="text-center">
-                    <a href="{{ url_for('ticket_detail', ticket_id=ticket[0]) }}" class="badge bg-primary text-decoration-none">
-                        #{{ ticket[0] }}
-                    </a>
+                <!-- Ticket -->
+                <td class="ticket-cell">
+                    {% set title = ticket[1]|string if ticket[1] else '' %}
+                    <div class="d-flex align-items-baseline gap-2 min-w-0">
+                        <a href="{{ url_for('ticket_detail', ticket_id=ticket[0]) }}" class="ticket-id">#{{ ticket[0] }}</a>
+                        <a href="{{ url_for('ticket_detail', ticket_id=ticket[0]) }}" class="ticket-title text-truncate" title="{{ title }}">
+                            {% if title %}{{ title }}{% else %}<em class="text-muted">No title</em>{% endif %}
+                        </a>
+                    </div>
+                    <div class="ticket-meta">
+                        {% if ticket[9] %}<i class="bi bi-tag"></i> {{ ticket[9] }} · {% endif %}opened {{ (ticket[4]|string)[:10] if ticket[4] else '—' }}
+                    </div>
                 </td>
-                
-                <!-- Title -->
+
+                <!-- Status -->
+                <td><span class="pill {{ st[0] }}">{{ st[1] }}</span></td>
+
+                <!-- Priority -->
                 <td>
-                    <a href="{{ url_for('ticket_detail', ticket_id=ticket[0]) }}" class="text-decoration-none text-dark fw-medium">
-                        {% set title = ticket[1]|string %}
-                        {% if title and title|length > 45 %}
-                            <span title="{{ title }}">{{ title[:45] }}...</span>
-                        {% elif title %}
-                            {{ title }}
-                        {% else %}
-                            <em class="text-muted">No title</em>
-                        {% endif %}
-                    </a>
-                </td>
-                
-                <!-- Priority Badge -->
-                <td class="text-center">
-                    {% if ticket[2] == 'high' %}
-                        <span class="badge bg-danger">
-                            <i class="bi bi-exclamation-triangle-fill"></i> High
-                        </span>
-                    {% elif ticket[2] == 'medium' %}
-                        <span class="badge bg-warning text-dark">
-                            <i class="bi bi-exclamation-circle"></i> Medium
-                        </span>
-                    {% elif ticket[2] == 'low' %}
-                        <span class="badge bg-success">
-                            <i class="bi bi-check-circle"></i> Low
-                        </span>
+                    {% if ticket[2] in ['low', 'medium', 'high'] %}
+                    <span class="priority priority-{{ ticket[2] }}" title="{{ ticket[2]|title }} priority">
+                        <span class="priority-bars"><i></i><i></i><i></i></span>{{ ticket[2]|title }}
+                    </span>
                     {% else %}
-                        <span class="badge bg-secondary">{{ ticket[2] }}</span>
+                    <span class="text-muted small">{{ ticket[2] or '—' }}</span>
                     {% endif %}
                 </td>
-                
-                <!-- Status Badge -->
-                <td class="text-center">
-                    {% if ticket[3] == 'new' %}
-                        <span class="badge bg-info">
-                            <i class="bi bi-star-fill"></i> New
-                        </span>
-                    {% elif ticket[3] == 'assigned' %}
-                        <span class="badge bg-primary">
-                            <i class="bi bi-person-check"></i> Assigned
-                        </span>
-                    {% elif ticket[3] == 'in_progress' %}
-                        <span class="badge bg-warning text-dark">
-                            <i class="bi bi-hourglass-split"></i> In Progress
-                        </span>
-                    {% elif ticket[3] == 'awaiting_confirmation' %}
-                        <span class="badge" style="background-color: #fd7e14;">
-                            <i class="bi bi-clock"></i> Awaiting
-                        </span>
-                    {% elif ticket[3] == 'closed' %}
-                        <span class="badge bg-success">
-                            <i class="bi bi-check-circle-fill"></i> Closed
-                        </span>
-                    {% else %}
-                        <span class="badge bg-secondary">{{ ticket[3]|replace('_', ' ')|title }}</span>
-                    {% endif %}
-                </td>
-                
-                <!-- Category -->
-                <td>
-                    {% if ticket[9] %}
-                        <span class="badge bg-light text-dark border" style="font-weight: normal;">
-                            <i class="bi bi-tag"></i> {{ ticket[9] }}
-                        </span>
-                    {% else %}
-                        <span class="text-muted small">-</span>
-                    {% endif %}
-                </td>
-                
-                <!-- Created By -->
-                <td>
+
+                <!-- Requester -->
+                <td class="d-none d-xl-table-cell">
                     {% if ticket[10] %}
-                        <div class="d-flex align-items-center">
-                            <i class="bi bi-person-circle text-secondary me-1"></i>
-                            <span class="text-truncate" style="max-width: 100px;" title="{{ ticket[10] }}">
-                                {{ ticket[10] }}
-                            </span>
-                        </div>
-                    {% else %}
-                        <span class="text-muted small">-</span>
-                    {% endif %}
+                    <span class="person" title="{{ ticket[10] }}">
+                        <span class="avatar avatar-sm">{{ (ticket[10].split()|map('first')|join|upper)[:2] }}</span>
+                        <span>{{ ticket[10] }}</span>
+                    </span>
+                    {% else %}<span class="text-muted small">—</span>{% endif %}
                 </td>
-                
-                <!-- Assigned To -->
+
+                <!-- Assignee -->
                 <td>
-                    {% if ticket[11] %}
-                        {% if ticket[11] == 'IT' %}
-                            <span class="badge bg-dark">
-                                <i class="bi bi-gear-fill"></i> IT
-                            </span>
-                        {% else %}
-                            <div class="d-flex align-items-center">
-                                <i class="bi bi-person-check-fill text-primary me-1"></i>
-                                <span class="text-truncate" style="max-width: 100px;" title="{{ ticket[11] }}">
-                                    {{ ticket[11] }}
-                                </span>
-                            </div>
-                        {% endif %}
+                    {% if ticket[11] and ticket[11] != 'IT' %}
+                    <span class="person" title="{{ ticket[11] }}">
+                        <span class="avatar avatar-sm">{{ (ticket[11].split()|map('first')|join|upper)[:2] }}</span>
+                        <span>{{ ticket[11] }}</span>
+                    </span>
                     {% else %}
-                        <span class="badge bg-secondary">
-                            <i class="bi bi-question-circle"></i> IT
-                        </span>
+                    <span class="pill pill-outline"><i class="bi bi-people"></i> IT queue</span>
                     {% endif %}
                 </td>
-                
-                <!-- Created Date -->
-                <td class="text-muted small">
-                    {% if ticket[4] %}
-                        <i class="bi bi-calendar-plus"></i> {{ (ticket[4]|string)[:16] }}
-                    {% else %}
-                        -
-                    {% endif %}
+
+                <!-- Updated -->
+                <td class="date-cell d-none d-xxl-table-cell" title="Created {{ (ticket[4]|string)[:16] if ticket[4] else '—' }}">
+                    {{ (ticket[5]|string)[:16] if ticket[5] else '—' }}
                 </td>
-                
-                <!-- Updated Date -->
-                <td class="text-muted small">
-                    {% if ticket[5] %}
-                        <i class="bi bi-clock-history"></i> {{ (ticket[5]|string)[:16] }}
-                    {% else %}
-                        -
-                    {% endif %}
-                </td>
-                
+
                 <!-- Due Date -->
-                <td class="text-center">
+                <td>
                     {% if ticket[8] and ticket[8] != '' %}
                         {% set due_date = ticket[8] %}
                         {% set today = now().strftime('%Y-%m-%d') %}
-                        
-                        {% if due_date < today %}
-                            <span class="badge bg-danger" title="Overdue">
-                                <i class="bi bi-exclamation-triangle-fill"></i> {{ due_date[5:] }}
-                            </span>
-                        {% elif due_date == today %}
-                            <span class="badge bg-warning text-dark" title="Due today">
-                                <i class="bi bi-clock-fill"></i> Today
-                            </span>
+                        {% if ticket[3] != 'closed' and due_date < today %}
+                            <span class="pill pill-red no-dot" title="Overdue since {{ due_date }}"><i class="bi bi-exclamation-circle"></i> {{ due_date[5:] }}</span>
+                        {% elif ticket[3] != 'closed' and due_date == today %}
+                            <span class="pill pill-amber no-dot" title="Due today"><i class="bi bi-clock"></i> Today</span>
                         {% else %}
-                            <span class="text-muted small">
-                                <i class="bi bi-calendar-event"></i> {{ due_date[5:] }}
-                            </span>
+                            <span class="date-cell" title="{{ due_date }}">{{ due_date[5:] }}</span>
                         {% endif %}
                     {% else %}
-                        <span class="text-muted small">-</span>
+                        <span class="text-muted small">—</span>
                     {% endif %}
                 </td>
-                
+
                 <!-- Actions Dropdown -->
-                <td class="text-center">
+                <td class="text-end">
                     <div class="dropdown">
-                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" 
+                        <button class="btn btn-icon btn-sm row-actions" 
                                 type="button" 
                                 id="actionsDropdown{{ ticket[0] }}" 
-                                data-bs-toggle="dropdown" 
+                                data-bs-toggle="dropdown"
+                                data-bs-popper-config='{"strategy":"fixed"}' 
                                 aria-expanded="false">
                             <i class="bi bi-three-dots-vertical"></i>
                         </button>
@@ -328,16 +251,14 @@
 </div>
 
 <!-- Ticket Count -->
-<div class="d-flex justify-content-between align-items-center mt-3 px-2">
-    <p class="text-muted mb-0 small">
-        Showing <strong class="ticket-count">{{ tickets|length }}</strong> ticket(s)
-    </p>
-    <div class="text-muted small">
-        <i class="bi bi-info-circle"></i> 
-        <span class="badge bg-danger">●</span> High | 
-        <span class="badge bg-warning text-dark">●</span> Medium | 
-        <span class="badge bg-success">●</span> Low
-    </div>
+<div class="table-footer">
+    <span>Showing <strong class="ticket-count">{{ tickets|length }}</strong> ticket(s)</span>
+    <span class="d-none d-md-inline">
+        <span class="priority priority-high me-2"><span class="priority-bars"><i></i><i></i><i></i></span>High</span>
+        <span class="priority priority-medium me-2"><span class="priority-bars"><i></i><i></i><i></i></span>Medium</span>
+        <span class="priority priority-low"><span class="priority-bars"><i></i><i></i><i></i></span>Low</span>
+    </span>
+</div>
 </div>
 
 <!-- Reassign Modal -->
@@ -450,118 +371,20 @@ function showAssignITModal(element) {
 </script>
 
 {% else %}
-<div class="alert alert-info d-flex align-items-center" role="alert">
-    <i class="bi bi-info-circle me-2 fs-4"></i>
-    <div>
-        <strong>No tickets found</strong><br>
-        <small>No tickets match the current filter.</small>
-    </div>
+<div class="empty-state">
+    <div class="empty-state-icon"><i class="bi bi-inbox"></i></div>
+    <h6>No tickets found</h6>
+    <p>No tickets match the current filter.</p>
 </div>
 {% endif %}
 
 <style>
-.ticket-row {
-    transition: background-color 0.15s ease;
-}
-.ticket-row:hover {
-    background-color: #f8f9fa !important;
-}
-.ticket-row:has(.dropdown.show) {
-    background-color: #e9ecef !important;
-}
-.dropdown-toggle {
-    transition: none !important;
-}
-.table-responsive {
-    overflow: visible !important;
-}
-.dropdown-menu {
-    position: absolute !important;
-    z-index: 1050 !important;
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
-    min-width: 200px !important;
-}
-/* ukloni/override prisilni flip */
-tbody tr:last-child .dropdown-menu {
-    transform: none !important;
-    margin-bottom: 0 !important;
-}
-
-/* dropup ponašanje kad ga JS doda */
-.dropdown.dropup .dropdown-menu {
-    top: auto !important;
-    bottom: 100% !important;
-    transform: translateY(-0.35rem) !important;
-}
-.dropdown-item {
-    cursor: pointer !important;
-    white-space: nowrap !important;
-}
-.dropdown-item form {
-    margin: 0 !important;
-}
-.dropdown-item button {
-    width: 100% !important;
-    text-align: left !important;
-    border: none !important;
-    background: none !important;
-    padding: 0 !important;
-    color: inherit !important;
-}
-.table thead th {
-    border-bottom: 2px solid #dee2e6;
-    font-weight: 600;
-    text-transform: uppercase;
-    font-size: 0.75rem;
-    letter-spacing: 0.5px;
-}
-.badge {
-    font-weight: 500;
-    padding: 0.35em 0.65em;
-}
+.ticket-row:has(.dropdown.show) { background-color: var(--tx-surface-hover) !important; }
+.row-actions { width: 30px; height: 30px; font-size: 1rem; }
+.row-actions::after { display: none; }
+.dropdown-menu { z-index: 1050 !important; min-width: 250px; }
+.dropdown-item { cursor: pointer; white-space: nowrap; }
+.dropdown-menu form { margin: 0; }
+.dropdown-menu form .dropdown-item { width: 100%; text-align: left; }
 </style>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  // Dodaje .dropup ako dropdown ne stane ispod u viewportu
-  const dropdowns = document.querySelectorAll('.dropdown');
-
-  dropdowns.forEach(dd => {
-    dd.addEventListener('shown.bs.dropdown', function() {
-      const menu = dd.querySelector('.dropdown-menu');
-      if (!menu) return;
-
-      // getBoundingClientRect AFTER it's displayed (Bootstrap adds .show)
-      const rect = menu.getBoundingClientRect();
-      const viewportH = window.innerHeight || document.documentElement.clientHeight;
-
-      // margin sigurnosti (px)
-      const buffer = 8;
-
-      // Ako dno menija prelazi viewport -> otvori gore
-      if (rect.bottom > viewportH - buffer) {
-        dd.classList.add('dropup');
-      } else {
-        dd.classList.remove('dropup');
-      }
-    });
-
-    // obriši klasu kad se zatvori
-    dd.addEventListener('hidden.bs.dropdown', function() {
-      dd.classList.remove('dropup');
-    });
-
-    // Također re-proveravaj pri resize-u ako je meni otvoren
-    window.addEventListener('resize', function() {
-      if (dd.classList.contains('show') || dd.querySelector('.dropdown-menu').classList.contains('show')) {
-        const menu = dd.querySelector('.dropdown-menu');
-        const rect = menu.getBoundingClientRect();
-        const viewportH = window.innerHeight || document.documentElement.clientHeight;
-        const buffer = 8;
-        if (rect.bottom > viewportH - buffer) dd.classList.add('dropup');
-        else dd.classList.remove('dropup');
-      }
-    });
-  });
-});
-</script>
