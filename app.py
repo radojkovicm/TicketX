@@ -995,7 +995,9 @@ def dashboard():
     # Get all users for Browse filter
     cursor.execute("SELECT id, full_name FROM users ORDER BY full_name")
     all_users_for_filter = cursor.fetchall()
-    
+
+    stats = _dashboard_stats(cursor, role, user_id)
+
     conn.close()
 
     return render_template(
@@ -1015,8 +1017,45 @@ def dashboard():
         tickets_closed_by_admin=tickets_closed_by_admin,
         tickets_browse_all_public=tickets_browse_all_public,
         tickets_browse_department=tickets_browse_department,
-        all_users_for_filter=all_users_for_filter
+        all_users_for_filter=all_users_for_filter,
+        stats=stats,
     )
+
+
+def _dashboard_stats(cursor, role, user_id):
+    """Summary counts for the dashboard header, independent of the active filter.
+
+    Admins see the whole helpdesk; everyone else sees tickets they created,
+    are assigned to, or watch.
+    """
+    scope_sql = ""
+    params = []
+    if role != 'admin':
+        scope_sql = """
+        AND (t.created_by = ? OR t.assigned_to = ?
+             OR t.id IN (SELECT ticket_id FROM ticket_watchers WHERE user_id = ?))
+        """
+        params = [user_id, user_id, user_id]
+
+    today = datetime.now().strftime('%Y-%m-%d')
+    week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+    cursor.execute(
+        f"""
+        SELECT
+            COALESCE(SUM(t.status != 'closed'), 0),
+            COALESCE(SUM(t.status = 'in_progress'), 0),
+            COALESCE(SUM(t.status = 'awaiting_confirmation'), 0),
+            COALESCE(SUM(t.status != 'closed' AND t.priority = 'high'), 0),
+            COALESCE(SUM(t.status != 'closed' AND t.due_date IS NOT NULL AND t.due_date != '' AND t.due_date < ?), 0),
+            COALESCE(SUM(t.status = 'closed' AND t.updated_at >= ?), 0)
+        FROM tickets t
+        WHERE 1=1 {scope_sql}
+        """,
+        [today, week_ago, *params],
+    )
+    row = cursor.fetchone() or (0, 0, 0, 0, 0, 0)
+    keys = ('open', 'in_progress', 'awaiting', 'high', 'overdue', 'closed_week')
+    return dict(zip(keys, (int(v or 0) for v in row)))
 
 @app.route('/create_ticket', methods=['GET', 'POST'])
 @login_required
