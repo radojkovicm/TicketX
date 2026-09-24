@@ -1067,3 +1067,9 @@ a.stat-card:hover { border-color: var(--tx-border-strong); transform: translateY
 .card-body:has(> .table-responsive:only-child) .table > :not(caption) > * > *:first-child { padding-left: 1.15rem; }
 .card-body:has(> .table-responsive:only-child) .table > :not(caption) > * > *:last-child { padding-right: 1.15rem; }
 .table-striped > tbody > tr:nth-of-type(odd) > * { --bs-table-bg-type: transparent; }
+
+/* Ticket table: title column absorbs spare width and truncates instead of overflowing. */
+.ticket-cell { min-width: 240px; max-width: 1px; width: 100%; }
+.ticket-table .person { max-width: 150px; }
+/* Anchor absolutely positioned children (e.g. .visually-hidden labels) inside the scroll area. */
+.table-responsive { position: relative; }
