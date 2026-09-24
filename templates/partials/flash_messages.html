@@ -1,0 +1,15 @@
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-stack">
+        {% for category, message in messages %}
+        {% set level = 'danger' if category == 'error' else (category if category in ['success', 'info', 'warning', 'danger'] else 'info') %}
+        {% set icon = {'success': 'check-circle-fill', 'danger': 'x-octagon-fill', 'warning': 'exclamation-triangle-fill', 'info': 'info-circle-fill'}[level] %}
+        <div class="alert alert-{{ level }} alert-dismissible fade show flash-message" role="alert">
+            <i class="bi bi-{{ icon }} flash-icon"></i>
+            <div class="flash-text">{{ message }}</div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+{% endwith %}

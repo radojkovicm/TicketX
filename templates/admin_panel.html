@@ -3,80 +3,43 @@
 {% block title %}Admin Panel - Ticket System{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <h2>Admin Panel</h2>
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5>System Logs</h5>
-                </div>
-                <div class="card-body">
-                    <a href="{{ url_for('view_logs') }}" class="btn btn-info">View Activity Logs</a>
-                    <p class="text-muted mt-2">Monitor all user activities and system events</p>
-                </div>
-            </div>
+<div>
+    <div class="page-header">
+        <div>
+            <h1>Admin panel</h1>
+            <p class="page-subtitle">Manage people, departments and categories.</p>
         </div>
-    </div>
-    
-    <!-- Quick Actions -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5>Quick Actions</h5>
-                </div>
-                <div class="card-body">
-                    <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#addUserModal">
-                        Add Single User
-                    </button>
-                    <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#importUsersModal">
-                        Import Users from Excel
-                    </button>
-                    <button class="btn btn-warning me-2" data-bs-toggle="modal" data-bs-target="#addDepartmentModal">
-                        Add Department
-                    </button>
-                    <button class="btn btn-secondary me-2" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
-                        Add Category
-                    </button>
-                </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{{ url_for('view_logs') }}" class="btn btn-secondary"><i class="bi bi-activity"></i> Activity log</a>
+            <button class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#importUsersModal"><i class="bi bi-file-earmark-spreadsheet"></i> Import users</button>
+            <div class="dropdown">
+                <button class="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-plus-lg"></i> Add</button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#addDepartmentModal"><i class="bi bi-building"></i> Department</button></li>
+                    <li><button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#addCategoryModal"><i class="bi bi-tag"></i> Category</button></li>
+                </ul>
             </div>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addUserModal"><i class="bi bi-person-plus"></i> Add user</button>
         </div>
     </div>
 
     <!-- Statistics -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card text-white bg-primary">
-                <div class="card-body text-center py-2">
-                    <h6 class="mb-1">Total Users</h6>
-                    <h5 class="mb-0">{{ users|length }}</h5>
-                </div>
-            </div>
+    <div class="stat-grid">
+        <div class="stat-card">
+            <div class="stat-label">Users <span class="stat-icon tone-indigo"><i class="bi bi-people"></i></span></div>
+            <div class="stat-value">{{ users|length }}</div>
         </div>
-        <div class="col-md-3">
-            <div class="card text-white bg-success">
-                <div class="card-body text-center py-2">
-                    <h6 class="mb-1">Total Tickets</h6>
-                    <h5 class="mb-0">{{ tickets|length }}</h5>
-                </div>
-            </div>
+        <div class="stat-card">
+            <div class="stat-label">Tickets <span class="stat-icon tone-blue"><i class="bi bi-ticket-perforated"></i></span></div>
+            <div class="stat-value">{{ tickets|length }}</div>
         </div>
-        <div class="col-md-3">
-            <div class="card text-white bg-warning">
-                <div class="card-body text-center py-2">
-                    <h6 class="mb-1">Departments</h6>
-                    <h5 class="mb-0">{{ departments|length }}</h5>
-                </div>
-            </div>
+        <div class="stat-card">
+            <div class="stat-label">Departments <span class="stat-icon tone-amber"><i class="bi bi-building"></i></span></div>
+            <div class="stat-value">{{ departments|length }}</div>
         </div>
-        <div class="col-md-3">
-            <div class="card text-white bg-info">
-                <div class="card-body text-center py-2">
-                    <h6 class="mb-1">Categories</h6>
-                    <h5 class="mb-0">{{ categories|length }}</h5>
-                </div>
-            </div>
+        <div class="stat-card">
+            <div class="stat-label">Categories <span class="stat-icon tone-green"><i class="bi bi-tags"></i></span></div>
+            <div class="stat-value">{{ categories|length }}</div>
         </div>
     </div>
 
@@ -110,7 +73,7 @@
                                     <td>{{ user[4] }}</td>
                                     <td>{{ user[3] or 'N/A' }}</td>
                                     <td>
-                                        <span class="badge bg-{{ 'danger' if user[5] == 'admin' else 'primary' }}">
+                                        <span class="badge bg-{{ 'primary' if user[5] == 'admin' else 'secondary' }}">
                                             {{ user[5].title() }}
                                         </span>
                                     </td>
@@ -129,7 +92,7 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        <a href="{{ url_for('edit_user', user_id=user[0]) }}" class="btn btn-sm btn-outline-warning me-1">Edit</a>
+                                        <a href="{{ url_for('edit_user', user_id=user[0]) }}" class="btn btn-sm btn-secondary me-1"><i class="bi bi-pencil"></i> Edit</a>
                                         <button class="btn btn-sm btn-outline-danger" data-action="delete-user" data-user-id="{{ user[0] }}">Delete</button>
                                     </td>
                                 </tr>
@@ -313,7 +276,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-success">Import Users</button>
+                    <button type="submit" class="btn btn-primary">Import users</button>
                 </div>
             </form>
         </div>
@@ -341,7 +304,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-warning">Add Department</button>
+                    <button type="submit" class="btn btn-primary">Add department</button>
                 </div>
             </form>
         </div>

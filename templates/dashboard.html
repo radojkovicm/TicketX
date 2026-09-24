@@ -6,79 +6,78 @@
 
 {% block content %}
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2>
-        {% if role == 'admin' %}
-            All Tickets
-        {% else %}
-            My Tickets
-        {% endif %}
-    </h2>
+<div class="page-header">
+    <div>
+        <h1>{% if role == 'admin' %}All tickets{% else %}My tickets{% endif %}</h1>
+        <p class="page-subtitle">
+            {% if role == 'admin' %}Everything flowing through the helpdesk, in one place.{% else %}Tickets you created, own or follow.{% endif %}
+        </p>
+    </div>
     <a href="{{ url_for('create_ticket') }}" class="btn btn-primary">
-        <i class="bi bi-plus-circle"></i> Create New Ticket
+        <i class="bi bi-plus-lg"></i> New ticket
     </a>
 </div>
 
-<!-- Sort & Search Section -->
-<div class="card mb-3">
-    <div class="card-body">
-        <div class="row g-3 align-items-end">
-            <!-- Sort Dropdown -->
-            <div class="col-md-4">
-                <form method="GET" id="sortForm">
-                    <input type="hidden" name="filter" value="{{ current_filter }}">
-                    <input type="hidden" name="assigned" value="{{ assigned_filter }}">
-                    <label for="sort" class="form-label mb-1"><i class="bi bi-sort-down"></i> Sort by:</label>
-                    <select name="sort" id="sort" class="form-select form-select-sm" onchange="this.form.submit()">
-                        <option value="updated_at_desc" {% if sort_param == 'updated_at_desc' %}selected{% endif %}>Last Updated (Newest)</option>
-                        <option value="updated_at_asc" {% if sort_param == 'updated_at_asc' %}selected{% endif %}>Last Updated (Oldest)</option>
-                        <option value="created_at_desc" {% if sort_param == 'created_at_desc' %}selected{% endif %}>Created At (Newest)</option>
-                        <option value="created_at_asc" {% if sort_param == 'created_at_asc' %}selected{% endif %}>Created At (Oldest)</option>
-                        <option value="priority_desc" {% if sort_param == 'priority_desc' %}selected{% endif %}>Priority (High to Low)</option>
-                        <option value="priority_asc" {% if sort_param == 'priority_asc' %}selected{% endif %}>Priority (Low to High)</option>
-                        <option value="due_date_desc" {% if sort_param == 'due_date_desc' %}selected{% endif %}>Due Date (Newest)</option>
-                        <option value="due_date_asc" {% if sort_param == 'due_date_asc' %}selected{% endif %}>Due Date (Oldest)</option>
-                    </select>
-                </form>
-            </div>
-
-            <!-- Search Box -->
-            <div class="col-md-8">
-                <form method="GET" action="{{ url_for('search') }}" class="d-flex gap-2">
-                    <div class="flex-grow-1">
-                        <label for="search" class="form-label mb-1"><i class="bi bi-search"></i> Search:</label>
-                        <input type="text" name="q" id="search" class="form-control form-control-sm"
-                               placeholder="Search tickets, descriptions, comments..." 
-                               value="{{ request.args.get('q', '') }}" 
-                               autocomplete="off">
-                    </div>
-                    <div class="align-self-end">
-                        <button type="submit" class="btn btn-outline-primary btn-sm">
-                            <i class="bi bi-search"></i> Search
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
+{% if stats %}
+<div class="stat-grid">
+    <a class="stat-card" href="{{ url_for('dashboard', filter='active', sort=sort_param) }}">
+        <div class="stat-label">Open <span class="stat-icon tone-indigo"><i class="bi bi-inbox"></i></span></div>
+        <div class="stat-value">{{ stats.open }}</div>
+        <div class="stat-hint">not yet closed</div>
+    </a>
+    <div class="stat-card">
+        <div class="stat-label">In progress <span class="stat-icon tone-blue"><i class="bi bi-lightning-charge"></i></span></div>
+        <div class="stat-value">{{ stats.in_progress }}</div>
+        <div class="stat-hint">being worked on</div>
     </div>
+    <div class="stat-card">
+        <div class="stat-label">Awaiting confirmation <span class="stat-icon tone-orange"><i class="bi bi-hourglass-split"></i></span></div>
+        <div class="stat-value">{{ stats.awaiting }}</div>
+        <div class="stat-hint">waiting on requester</div>
+    </div>
+    <a class="stat-card" href="{{ url_for('dashboard', filter='active', sort='priority_desc') }}">
+        <div class="stat-label">High priority <span class="stat-icon tone-red"><i class="bi bi-exclamation-triangle"></i></span></div>
+        <div class="stat-value">{{ stats.high }}</div>
+        <div class="stat-hint">{% if stats.overdue %}<span style="color: var(--tx-red-fg)">{{ stats.overdue }} overdue</span>{% else %}nothing overdue{% endif %}</div>
+    </a>
+    <a class="stat-card" href="{{ url_for('dashboard', filter='closed', sort=sort_param) }}">
+        <div class="stat-label">Closed this week <span class="stat-icon tone-green"><i class="bi bi-check2-circle"></i></span></div>
+        <div class="stat-value">{{ stats.closed_week }}</div>
+        <div class="stat-hint">last 7 days</div>
+    </a>
 </div>
+{% endif %}
 
-<!-- Status Filter Buttons (Minimalist) -->
-<div class="mb-3 d-flex align-items-center">
-    <span class="text-muted small me-2">Filter:</span>
-    <div class="btn-group btn-group-sm" role="group" aria-label="Status filter">
-        <a href="{{ url_for('dashboard', filter='active', assigned=assigned_filter, sort=sort_param) }}" 
-           class="btn btn-sm btn-{{ 'primary' if current_filter == 'active' else 'outline-secondary' }}">
-            Active
-        </a>
-        <a href="{{ url_for('dashboard', filter='all', assigned=assigned_filter, sort=sort_param) }}" 
-           class="btn btn-sm btn-{{ 'secondary' if current_filter == 'all' else 'outline-secondary' }}">
-            All
-        </a>
-        <a href="{{ url_for('dashboard', filter='closed', assigned=assigned_filter, sort=sort_param) }}" 
-           class="btn btn-sm btn-{{ 'secondary' if current_filter == 'closed' else 'outline-secondary' }}">
-            Archived
-        </a>
+<!-- Search, sort & status filter -->
+<div class="toolbar">
+    <form method="GET" action="{{ url_for('search') }}" class="toolbar-search" role="search">
+        <i class="bi bi-search"></i>
+        <input type="text" name="q" id="search" class="form-control"
+               placeholder="Search tickets, descriptions, comments…"
+               value="{{ request.args.get('q', '') }}"
+               autocomplete="off" aria-label="Search tickets">
+    </form>
+
+    <form method="GET" id="sortForm" class="toolbar-sort">
+        <input type="hidden" name="filter" value="{{ current_filter }}">
+        <input type="hidden" name="assigned" value="{{ assigned_filter }}">
+        <label for="sort"><i class="bi bi-sort-down"></i> Sort</label>
+        <select name="sort" id="sort" class="form-select" onchange="this.form.submit()">
+            <option value="updated_at_desc" {% if sort_param == 'updated_at_desc' %}selected{% endif %}>Last updated (newest)</option>
+            <option value="updated_at_asc" {% if sort_param == 'updated_at_asc' %}selected{% endif %}>Last updated (oldest)</option>
+            <option value="created_at_desc" {% if sort_param == 'created_at_desc' %}selected{% endif %}>Created (newest)</option>
+            <option value="created_at_asc" {% if sort_param == 'created_at_asc' %}selected{% endif %}>Created (oldest)</option>
+            <option value="priority_desc" {% if sort_param == 'priority_desc' %}selected{% endif %}>Priority (high to low)</option>
+            <option value="priority_asc" {% if sort_param == 'priority_asc' %}selected{% endif %}>Priority (low to high)</option>
+            <option value="due_date_desc" {% if sort_param == 'due_date_desc' %}selected{% endif %}>Due date (latest)</option>
+            <option value="due_date_asc" {% if sort_param == 'due_date_asc' %}selected{% endif %}>Due date (soonest)</option>
+        </select>
+    </form>
+
+    <div class="segmented ms-lg-auto" role="group" aria-label="Status filter">
+        <a href="{{ url_for('dashboard', filter='active', assigned=assigned_filter, sort=sort_param) }}" class="{{ 'active' if current_filter == 'active' }}">Active</a>
+        <a href="{{ url_for('dashboard', filter='all', assigned=assigned_filter, sort=sort_param) }}" class="{{ 'active' if current_filter == 'all' }}">All</a>
+        <a href="{{ url_for('dashboard', filter='closed', assigned=assigned_filter, sort=sort_param) }}" class="{{ 'active' if current_filter == 'closed' }}">Archived</a>
     </div>
 </div>
 
@@ -87,22 +86,22 @@
 <ul class="nav nav-tabs mb-3" id="ticketTabs" role="tablist">
     <li class="nav-item" role="presentation">
         <button class="nav-link active" id="assigned-tab" data-bs-toggle="tab" data-bs-target="#assigned" type="button" role="tab">
-            <i class="bi bi-person-check"></i> Assigned to me
+            <i class="bi bi-person-check"></i> Assigned to me <span class="tab-count">{{ tickets_assigned_to_me|length }}</span>
         </button>
     </li>
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="browse-tab" data-bs-toggle="tab" data-bs-target="#browse" type="button" role="tab">
-            <i class="bi bi-grid"></i> Browse Tickets
+            <i class="bi bi-grid"></i> Browse <span class="tab-count">{{ tickets_browse_all_public|length }}</span>
         </button>
     </li>
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="created-tab" data-bs-toggle="tab" data-bs-target="#created" type="button" role="tab">
-            <i class="bi bi-pencil-square"></i> My Created Tickets
+            <i class="bi bi-pencil-square"></i> Created by me <span class="tab-count">{{ tickets_my_created|length }}</span>
         </button>
     </li>
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="watched-tab" data-bs-toggle="tab" data-bs-target="#watched" type="button" role="tab">
-            <i class="bi bi-eye"></i> Watched Tickets
+            <i class="bi bi-eye"></i> Watching <span class="tab-count">{{ (tickets_watched_admin if role == 'admin' else tickets_watched)|length }}</span>
         </button>
     </li>
 </ul>
@@ -114,13 +113,14 @@
             {% set tickets = tickets_assigned_to_me %}
             {% include 'partials/ticket_table.html' with context %}
         {% else %}
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i> No tickets assigned to you.
-            </div>
+            <div class="empty-state">
+            <div class="empty-state-icon"><i class="bi bi-inbox"></i></div>
+            <p>No tickets assigned to you.</p>
+        </div>
         {% endif %}
     </div>
     
-    <!-- Browse Tickets -->
+    <!-- Browse -->
     <div class="tab-pane fade" id="browse" role="tabpanel">
         <!-- Filter by Assigned To -->
         <div class="card mb-3">
@@ -161,21 +161,23 @@
             {% set tickets = tickets_browse_all_public %}
             {% include 'partials/ticket_table.html' with context %}
         {% else %}
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i> No tickets found.
-            </div>
+            <div class="empty-state">
+            <div class="empty-state-icon"><i class="bi bi-inbox"></i></div>
+            <p>No tickets found.</p>
+        </div>
         {% endif %}
     </div>
     
-    <!-- My Created Tickets -->
+    <!-- Created by me -->
     <div class="tab-pane fade" id="created" role="tabpanel">
         {% if tickets_my_created %}
             {% set tickets = tickets_my_created %}
             {% include 'partials/ticket_table.html' with context %}
         {% else %}
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i> You haven't created any tickets yet.
-            </div>
+            <div class="empty-state">
+            <div class="empty-state-icon"><i class="bi bi-inbox"></i></div>
+            <p>You haven't created any tickets yet.</p>
+        </div>
         {% endif %}
     </div>
     
@@ -185,9 +187,10 @@
             {% set tickets = tickets_watched_admin %}
             {% include 'partials/ticket_table.html' with context %}
         {% else %}
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i> You are not watching any tickets.
-            </div>
+            <div class="empty-state">
+            <div class="empty-state-icon"><i class="bi bi-inbox"></i></div>
+            <p>You are not watching any tickets.</p>
+        </div>
         {% endif %}
     </div>
 </div>
@@ -197,22 +200,22 @@
 <ul class="nav nav-tabs mb-3" id="ticketTabs" role="tablist">
     <li class="nav-item" role="presentation">
         <button class="nav-link active" id="assigned-tab" data-bs-toggle="tab" data-bs-target="#assigned" type="button" role="tab">
-            <i class="bi bi-person-check"></i> Assigned to me
+            <i class="bi bi-person-check"></i> Assigned to me <span class="tab-count">{{ tickets_assigned_to_me|length }}</span>
         </button>
     </li>
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="created-tab" data-bs-toggle="tab" data-bs-target="#created" type="button" role="tab">
-            <i class="bi bi-pencil-square"></i> My created tickets
+            <i class="bi bi-pencil-square"></i> Created by me <span class="tab-count">{{ tickets_my_created|length }}</span>
         </button>
     </li>
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="watched-tab" data-bs-toggle="tab" data-bs-target="#watched" type="button" role="tab">
-            <i class="bi bi-eye"></i> Watched Tickets
+            <i class="bi bi-eye"></i> Watching <span class="tab-count">{{ (tickets_watched_admin if role == 'admin' else tickets_watched)|length }}</span>
         </button>
     </li>
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="browse-tab" data-bs-toggle="tab" data-bs-target="#browse" type="button" role="tab">
-            <i class="bi bi-grid"></i> Browse Tickets
+            <i class="bi bi-grid"></i> Browse <span class="tab-count">{{ tickets_browse_all_public|length }}</span>
         </button>
     </li>
 </ul>
@@ -224,21 +227,23 @@
             {% set tickets = tickets_assigned_to_me %}
             {% include 'partials/ticket_table.html' with context %}
         {% else %}
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i> No tickets assigned to you.
-            </div>
+            <div class="empty-state">
+            <div class="empty-state-icon"><i class="bi bi-inbox"></i></div>
+            <p>No tickets assigned to you.</p>
+        </div>
         {% endif %}
     </div>
     
-    <!-- My Created Tickets -->
+    <!-- Created by me -->
     <div class="tab-pane fade" id="created" role="tabpanel">
         {% if tickets_my_created %}
             {% set tickets = tickets_my_created %}
             {% include 'partials/ticket_table.html' with context %}
         {% else %}
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i> You haven't created any tickets yet.
-            </div>
+            <div class="empty-state">
+            <div class="empty-state-icon"><i class="bi bi-inbox"></i></div>
+            <p>You haven't created any tickets yet.</p>
+        </div>
         {% endif %}
     </div>
     
@@ -248,13 +253,14 @@
             {% set tickets = tickets_watched %}
             {% include 'partials/ticket_table.html' with context %}
         {% else %}
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i> You are not watching any tickets.
-            </div>
+            <div class="empty-state">
+            <div class="empty-state-icon"><i class="bi bi-inbox"></i></div>
+            <p>You are not watching any tickets.</p>
+        </div>
         {% endif %}
     </div>
     
-    <!-- Browse Tickets -->
+    <!-- Browse -->
     <div class="tab-pane fade" id="browse" role="tabpanel">
         <ul class="nav nav-pills mb-3" id="browseTabs" role="tablist">
             <li class="nav-item" role="presentation">
@@ -294,9 +300,10 @@
                     {% set tickets = tickets_browse_all_public %}
                     {% include 'partials/ticket_table.html' with context %}
                 {% else %}
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i> No public tickets found.
-                    </div>
+                    <div class="empty-state">
+            <div class="empty-state-icon"><i class="bi bi-inbox"></i></div>
+            <p>No public tickets found.</p>
+        </div>
                 {% endif %}
             </div>
             
@@ -307,9 +314,10 @@
                     {% set tickets = tickets_browse_department %}
                     {% include 'partials/ticket_table.html' with context %}
                 {% else %}
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i> No department tickets found.
-                    </div>
+                    <div class="empty-state">
+            <div class="empty-state-icon"><i class="bi bi-inbox"></i></div>
+            <p>No department tickets found.</p>
+        </div>
                 {% endif %}
             </div>
             {% endif %}
