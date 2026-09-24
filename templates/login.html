@@ -1,57 +1,79 @@
 {% extends "base.html" %}
+{% set guest_page = true %}
 
-{% block title %}Login - Ticket System{% endblock %}
+{% block title %}Sign in - Ticket System{% endblock %}
 
-{% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h4>Login</h4>
-            </div>
-            <div class="card-body">
-                {% if demo_mode %}
-                <section class="card border-primary bg-light mb-4" aria-labelledby="demo-login-title">
-                    <div class="card-body">
-                    <h5 id="demo-login-title" class="card-title text-primary">Portfolio demo access</h5>
-                    <p class="mb-3">No typing is required. Click the green button below to sign in with the read-only demo account.</p>
-                    <div class="row g-2 mb-3">
-                        <div class="col-sm-6">
-                            <div class="border rounded bg-white p-2 h-100">
-                                <div class="small text-muted">Username</div>
-                                <code class="fs-5 user-select-all">{{ demo_username }}</code>
-                            </div>
-                        </div>
-                        <div class="col-sm-6">
-                            <div class="border rounded bg-white p-2 h-100">
-                                <div class="small text-muted">Password</div>
-                                <code class="fs-5 user-select-all">{{ demo_password }}</code>
-                            </div>
-                        </div>
-                    </div>
-                    <form method="POST" class="demo-auth-form mt-3">
-                        <input type="hidden" name="username" value="{{ demo_username }}">
-                        <input type="hidden" name="password" value="{{ demo_password }}">
-                        <button type="submit" class="btn btn-success btn-lg w-100">Open the live demo</button>
-                    </form>
-                    <p class="small text-muted mt-3 mb-0">Synthetic users have <code>@milosradojkovic.dev</code> email addresses. No production data is included.</p>
-                    </div>
-                </section>
-                {% endif %}
+{% block guest_content %}
+<div class="auth-layout">
+    <section class="auth-hero">
+        <a class="brand" href="{{ url_for('login') }}">
+            <span class="brand-mark"><i class="bi bi-ticket-perforated-fill"></i></span>
+            <span class="brand-name">TicketX</span>
+        </a>
 
-                <form method="POST" class="demo-auth-form">
-                    <div class="mb-3">
-                        <label for="username" class="form-label">Username</label>
-                        <input type="text" class="form-control" id="username" name="username" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Password</label>
-                        <input type="password" class="form-control" id="password" name="password" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Login</button>
-                </form>
+        <div>
+            <h1>Every request,<br>tracked to done.</h1>
+            <p class="lead">The internal helpdesk for IT and cross-department support: assign, collaborate and close tickets without losing the thread.</p>
+
+            <ul class="auth-features">
+                <li><i class="bi bi-diagram-3"></i> Role-based workflows for admins, heads and teams</li>
+                <li><i class="bi bi-bell"></i> Watchers and email notifications on every change</li>
+                <li><i class="bi bi-shield-lock"></i> Private tickets, protected attachments and audit log</li>
+            </ul>
+
+            <div class="auth-preview" aria-hidden="true">
+                <div class="auth-preview-row"><span class="id">#1042</span> VPN access fails after password reset <span class="chip">In progress</span></div>
+                <div class="auth-preview-row"><span class="id">#1041</span> New laptop for onboarding <span class="chip">Assigned</span></div>
+                <div class="auth-preview-row"><span class="id">#1039</span> Warehouse label printer offline <span class="chip">Closed</span></div>
             </div>
         </div>
-    </div>
+
+        <div class="hero-footer small" style="opacity:.6">Self-hosted · Flask · SQLite</div>
+    </section>
+
+    <section class="auth-panel">
+        <div class="auth-card">
+            <h2>Welcome back</h2>
+            <p class="subtitle">Sign in to your TicketX workspace.</p>
+
+            {% if demo_mode %}
+            <section class="demo-access" aria-labelledby="demo-login-title">
+                <div id="demo-login-title" class="demo-access-title"><i class="bi bi-stars"></i> Portfolio demo access</div>
+                <p class="small mb-3" style="color: var(--tx-text-2)">No typing is required. Use the button below to sign in with the read-only demo account.</p>
+                <div class="d-grid gap-2 mb-3">
+                    <div class="demo-cred"><span class="text-muted">Username</span><code class="user-select-all">{{ demo_username }}</code></div>
+                    <div class="demo-cred"><span class="text-muted">Password</span><code class="user-select-all">{{ demo_password }}</code></div>
+                </div>
+                <form method="POST" class="demo-auth-form">
+                    <input type="hidden" name="username" value="{{ demo_username }}">
+                    <input type="hidden" name="password" value="{{ demo_password }}">
+                    <button type="submit" class="btn btn-primary btn-lg w-100">
+                        Open the live demo <i class="bi bi-arrow-right"></i>
+                    </button>
+                </form>
+                <p class="small text-muted mt-3 mb-0">Synthetic users have <code>@milosradojkovic.dev</code> email addresses. No production data is included.</p>
+            </section>
+            <div class="divider-text">or sign in manually</div>
+            {% endif %}
+
+            <form method="POST" class="demo-auth-form">
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" class="form-control" id="username" name="username" autocomplete="username" required {% if not demo_mode %}autofocus{% endif %}>
+                </div>
+                <div class="mb-4">
+                    <label for="password" class="form-label">Password</label>
+                    <div class="password-field">
+                        <input type="password" class="form-control" id="password" name="password" autocomplete="current-password" required>
+                        <button type="button" class="btn btn-icon password-toggle" aria-label="Show password" title="Show password"
+                                onclick="var i=document.getElementById('password');var s=i.type==='password';i.type=s?'text':'password';this.firstElementChild.className=s?'bi bi-eye-slash':'bi bi-eye';">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <button type="submit" class="btn {{ 'btn-secondary' if demo_mode else 'btn-primary' }} btn-lg w-100">Sign in</button>
+            </form>
+        </div>
+    </section>
 </div>
 {% endblock %}

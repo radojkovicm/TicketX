@@ -1,6 +1,28 @@
 // Main JavaScript for ticket system
-window.addEventListener('beforeunload', function() {
-    console.log('Page unloading - check if logout is called');
+
+// Theme toggle (light/dark). The initial theme is applied inline in base.html.
+document.addEventListener('DOMContentLoaded', function() {
+    const root = document.documentElement;
+    document.querySelectorAll('#themeToggle').forEach(function(toggle) {
+        toggle.addEventListener('click', function() {
+            const next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+            root.setAttribute('data-bs-theme', next);
+            try { localStorage.setItem('ticketx-theme', next); } catch (e) {}
+        });
+    });
+
+    // Press "/" anywhere (outside a text field) to jump to the search box.
+    const globalSearch = document.getElementById('globalSearch');
+    if (globalSearch) {
+        document.addEventListener('keydown', function(e) {
+            const tag = (e.target.tagName || '').toLowerCase();
+            if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+            if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
+            e.preventDefault();
+            globalSearch.focus();
+            globalSearch.select();
+        });
+    }
 });
 
 document.addEventListener('DOMContentLoaded', function() {

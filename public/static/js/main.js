@@ -1,6 +1,28 @@
 // Main JavaScript for ticket system
-window.addEventListener('beforeunload', function() {
-    console.log('Page unloading - check if logout is called');
+
+// Theme toggle (light/dark). The initial theme is applied inline in base.html.
+document.addEventListener('DOMContentLoaded', function() {
+    const root = document.documentElement;
+    document.querySelectorAll('#themeToggle').forEach(function(toggle) {
+        toggle.addEventListener('click', function() {
+            const next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+            root.setAttribute('data-bs-theme', next);
+            try { localStorage.setItem('ticketx-theme', next); } catch (e) {}
+        });
+    });
+
+    // Press "/" anywhere (outside a text field) to jump to the search box.
+    const globalSearch = document.getElementById('globalSearch');
+    if (globalSearch) {
+        document.addEventListener('keydown', function(e) {
+            const tag = (e.target.tagName || '').toLowerCase();
+            if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+            if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
+            e.preventDefault();
+            globalSearch.focus();
+            globalSearch.select();
+        });
+    }
 });
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -33,24 +55,24 @@ document.addEventListener('DOMContentLoaded', function() {
             if (file) {
                 const fileSize = (file.size / 1024 / 1024).toFixed(2);
                 const maxSize = 10; // 10MB
-
+                
                 if (fileSize > maxSize) {
                     alert(`File size (${fileSize}MB) exceeds maximum allowed size (${maxSize}MB)`);
                     this.value = '';
                     return;
                 }
-
+                
                 // Show file info
                 const fileInfo = document.createElement('div');
                 fileInfo.className = 'mt-2 text-muted';
                 fileInfo.textContent = `Selected: ${file.name} (${fileSize}MB)`;
-
+                
                 // Remove existing file info
                 const existingInfo = this.parentNode.querySelector('.file-info');
                 if (existingInfo) {
                     existingInfo.remove();
                 }
-
+                
                 fileInfo.className += ' file-info';
                 this.parentNode.appendChild(fileInfo);
             }
@@ -63,7 +85,7 @@ document.addEventListener('DOMContentLoaded', function() {
         button.addEventListener('click', function(e) {
             const status = this.value;
             let message = '';
-
+            
             switch(status) {
                 case 'in_progress':
                     message = 'Start working on this ticket?';
@@ -75,7 +97,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     message = 'Close this ticket?';
                     break;
             }
-
+            
             if (message && !confirm(message)) {
                 e.preventDefault();
             }
@@ -88,7 +110,7 @@ document.addEventListener('DOMContentLoaded', function() {
         searchInput.addEventListener('input', function() {
             const searchTerm = this.value.toLowerCase();
             const tableRows = document.querySelectorAll('tbody tr');
-
+            
             tableRows.forEach(function(row) {
                 const text = row.textContent.toLowerCase();
                 if (text.includes(searchTerm)) {
@@ -106,7 +128,7 @@ document.addEventListener('DOMContentLoaded', function() {
         form.addEventListener('submit', function(e) {
             const requiredFields = form.querySelectorAll('[required]');
             let isValid = true;
-
+            
             requiredFields.forEach(function(field) {
                 if (!field.value.trim()) {
                     field.classList.add('is-invalid');
@@ -115,7 +137,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     field.classList.remove('is-invalid');
                 }
             });
-
+            
             if (!isValid) {
                 e.preventDefault();
                 alert('Please fill in all required fields.');
@@ -135,7 +157,7 @@ function showLoading(button) {
     const originalText = button.innerHTML;
     button.innerHTML = '<span class="spinner"></span> Loading...';
     button.disabled = true;
-
+    
     return function() {
         button.innerHTML = originalText;
         button.disabled = false;
