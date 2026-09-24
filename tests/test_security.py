@@ -138,6 +138,20 @@ class TicketXSecurityTests(unittest.TestCase):
         with closing(sqlite3.connect(TEST_DB)) as conn:
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM comments WHERE ticket_id = 2").fetchone()[0], 1)
 
+    def test_dashboard_stats_only_count_tickets_in_user_scope(self):
+        with closing(sqlite3.connect(TEST_DB)) as conn:
+            cursor = conn.cursor()
+            self.assertEqual(ticketx._dashboard_stats(cursor, "admin", 1)["open"], 2)
+            self.assertEqual(ticketx._dashboard_stats(cursor, "user", 2)["open"], 2)
+            self.assertEqual(ticketx._dashboard_stats(cursor, "user", 4)["open"], 1)
+            self.assertEqual(ticketx._dashboard_stats(cursor, "user", 3)["open"], 0)
+
+        self.login_as(3)
+        response = self.client.get("/dashboard")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"stat-grid", response.data)
+        self.assertNotIn(b"Private ticket", response.data)
+
     def test_only_valid_status_transition_is_accepted(self):
         self.login_as(3)
         self.assertEqual(

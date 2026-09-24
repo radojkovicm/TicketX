@@ -9,397 +9,377 @@
     {{ all_users | map(attribute=1) | list | tojson }}
 </script>
 
-<div class="row">
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h4>Ticket #{{ ticket[0] }} - {{ ticket[1] }}</h4>
-                <div class="d-flex gap-2">
-                    {% if ticket[8] == 1 %}
-                    <span class="badge bg-dark fs-6">🔒 Private</span>
-                    {% endif %}
-                    <span class="badge bg-{{ 'success' if ticket[5] == 'closed' else 'primary' if ticket[5] == 'in_progress' else 'warning' if ticket[5] == 'awaiting_confirmation' else 'secondary' }} fs-6">
-                        {{ ticket[5].replace('_', ' ').title() }}
-                    </span>
-                </div>
-            </div>
+{% set status_map = {
+    'new': ('pill-gray', 'New'),
+    'assigned': ('pill-indigo', 'Assigned'),
+    'in_progress': ('pill-blue', 'In progress'),
+    'awaiting_confirmation': ('pill-orange', 'Awaiting confirmation'),
+    'closed': ('pill-green', 'Closed'),
+} %}
+{% set st = status_map.get(ticket[5], ('pill-gray', ticket[5].replace('_', ' ').title())) %}
+{% set can_change_status = (session.role == 'admin') or ((session.user_id|string) == (ticket[7]|string)) or ((session.user_id|string) == (ticket[6]|string)) %}
+
+<!-- HEADER -->
+<nav aria-label="breadcrumb" class="mb-2">
+    <a href="{{ url_for('dashboard') }}" class="text-muted small"><i class="bi bi-arrow-left"></i> All tickets</a>
+</nav>
+<div class="ticket-header">
+    <div class="min-w-0">
+        <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+            <span class="ticket-id fs-6">#{{ ticket[0] }}</span>
+            <span class="pill {{ st[0] }}">{{ st[1] }}</span>
+            {% if ticket[4] in ['low', 'medium', 'high'] %}
+            <span class="priority priority-{{ ticket[4] }}"><span class="priority-bars"><i></i><i></i><i></i></span>{{ ticket[4].title() }} priority</span>
+            {% endif %}
+            {% if ticket[8] == 1 %}
+            <span class="pill pill-gray no-dot"><i class="bi bi-lock-fill"></i> Private</span>
+            {% endif %}
+        </div>
+        <h1 class="ticket-heading">{{ ticket[1] }}</h1>
+        <p class="text-muted small mb-0">
+            Opened by <strong style="color: var(--tx-text-2)">{{ ticket[13] }}</strong> on {{ (ticket[9]|string)[:16] }}
+            {% if ticket[12] %} · <i class="bi bi-tag"></i> {{ ticket[12] }}{% endif %}
+        </p>
+    </div>
+
+    {% if can_change_status %}
+    <form method="POST" action="{{ url_for('update_ticket_status') }}" class="ticket-header-actions">
+        <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
+        <label for="quickStatus" class="visually-hidden">Quick status change</label>
+        <select name="status" id="quickStatus" class="form-select" onchange="this.form.submit()">
+            <option value="">Change status…</option>
+            {% if ticket[5] in ['new', 'assigned'] and (session.role == 'admin' or (session.user_id|string) == (ticket[7]|string)) %}
+            <option value="in_progress">▶ Start work</option>
+            {% endif %}
+            {% if ticket[5] == 'in_progress' and (session.role == 'admin' or (session.user_id|string) == (ticket[7]|string)) %}
+            <option value="awaiting_confirmation">✓ Mark complete</option>
+            {% endif %}
+            {% if ticket[5] == 'awaiting_confirmation' and (session.user_id|string) == (ticket[6]|string) %}
+            <option value="closed">✓ Confirm &amp; close</option>
+            <option value="in_progress">↺ Needs more work</option>
+            {% endif %}
+            {% if session.role == 'admin' and ticket[5] != 'closed' %}
+            <option value="closed">✕ Force close</option>
+            {% endif %}
+            {% if ticket[5] == 'closed' and (session.role == 'admin' or (session.user_id|string) == (ticket[6]|string) or (session.user_id|string) == (ticket[7]|string)) %}
+            <option value="in_progress">↺ Reopen ticket</option>
+            {% endif %}
+        </select>
+    </form>
+    {% endif %}
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <!-- DESCRIPTION -->
+        <div class="card mb-4">
+            <div class="card-header"><h5><i class="bi bi-text-left me-1 text-muted"></i> Description</h5></div>
             <div class="card-body">
-
-                <div class="preserve-whitespace mb-3">{{ ticket[2] }}</div>
-
-                <div class="row mb-3">
-                    <div class="col-md-3">
-                        <strong>Assigned To:</strong><br>
-                        {{ ticket[14] or 'IT' }}
-                    </div>
-
-                    {% if can_manage %}
-                    <div class="mt-3">
-                        <form method="POST" action="{{ url_for('reassign_ticket', ticket_id=ticket[0]) }}" class="d-flex align-items-center gap-2">
-                            <label class="mb-0">Reassign to:</label>
-                            <select name="new_assigned_to" id="new_assigned_to" class="form-select form-select-sm" style="width: 200px;" required>
-                            <option value="">Select user</option>
-                            {% if session.role == 'admin' and it_admins %}
-                            <optgroup label="IT Admins">
-                                <option value="IT" {% if ticket[7] is none or ticket[7] == 'IT' %}selected{% endif %}>IT (Unassigned)</option>
-
-                                {% for admin in it_admins %}
-                                <option value="{{ admin[0] }}" {% if admin[0]|string == ticket[7]|string %}selected{% endif %}>{{ admin[1] }}</option>
-                                {% endfor %}
-                            </optgroup>
-                            {% endif %}
-                            <optgroup label="Users">
-                                {% for user in users %}
-                                <option value="{{ user[0] }}" {% if user[0]|string == ticket[7]|string %}selected{% endif %}>{{ user[1] }}</option>
-                                {% endfor %}
-                            </optgroup>
-                            </select>
-                            <button type="submit" class="btn btn-sm btn-outline-primary">Reassign</button>
-                        </form>
-                    </div>
-                    {% endif %}
-
-                    <div class="col-md-3">
-                        <strong>Priority:</strong><br>
-                        <span class="badge bg-{{ 'danger' if ticket[4]=='high' else 'warning' if ticket[4]=='medium' else 'info' }}">{{ ticket[4].title() }}</span>
-                    </div>
-
-                    <div class="col-md-3">
-                        <strong>Created By:</strong><br>
-                        {{ ticket[13] }}
-                    </div>
-
-                    <div class="col-md-3">
-                        <strong>Created At:</strong><br>
-                        {{ ticket[9] }}
-                    </div>
-
-                    <!-- WATCHERS LIST -->
-                    <div class="col-md-12 mb-3">
-                        <strong>Watchers:</strong>
-                        {% if watchers %}
-                        <div class="d-flex flex-wrap gap-2 mt-2">
-                            {% for watcher in watchers %}
-                            <span class="badge bg-secondary d-flex align-items-center gap-1">
-                                {{ watcher[1] }}
-                                {% set can_remove = (session.role=='admin' or (session.user_id|string)==(ticket[6]|string) or session.user_id==watcher[0]) %}
-                                {% if can_remove %}
-                                <form method="POST" action="{{ url_for('remove_watcher', ticket_id=ticket[0]) }}" class="d-inline m-0">
-                                    <input type="hidden" name="watcher_id" value="{{ watcher[0] }}">
-                                    <button type="submit" class="btn btn-sm p-0 border-0 bg-transparent text-white" onclick="return confirm('Remove {{ watcher[1] }}?')" style="font-size:0.8rem;">×</button>
-                                </form>
-                                {% endif %}
-                            </span>
-                            {% endfor %}
-                        </div>
-                        {% else %}
-                        None
-                        {% endif %}
-                    <!-- ✅ DODAJ OVO OVDE: Mute/Unmute dugme -->
-                    {% set is_watcher = watchers|selectattr(0, "equalto", session.user_id)|list|length > 0 %}
-                    {% if is_watcher %}
-                    <div class="mt-2">
-                        {% if is_muted %}
-                        <form method="POST" action="{{ url_for('unmute_ticket', ticket_id=ticket[0]) }}" class="d-inline">
-                            <button type="submit" class="btn btn-sm btn-outline-success">
-                                🔔 Unmute notifications
-                            </button>
-                        </form>
-                        <small class="text-muted ms-2">You won't receive emails for this ticket</small>
-                        {% else %}
-                        <form method="POST" action="{{ url_for('mute_ticket', ticket_id=ticket[0]) }}" class="d-inline">
-                            <button type="submit" class="btn btn-sm btn-outline-warning">
-                                🔕 Mute notifications
-                            </button>
-                        </form>
-                        <small class="text-muted ms-2">You're receiving emails for this ticket</small>
-                        {% endif %}
-                    </div>
-                    {% endif %}
-                </div>
-                    {% set is_watcher = watchers|selectattr(0, "equalto", session.user_id)|list|length > 0 %}
-
-                    {% if can_manage %}
-                    <div class="col-md-12 mb-3">
-                        <form method="POST" action="{{ url_for('add_watchers', ticket_id=ticket[0]) }}">
-                            <div class="position-relative">
-                                <label class="form-label"><strong>Add Watchers:</strong></label>
-                                <input type="text" id="add_watchers_input" name="watchers" class="form-control" autocomplete="off" placeholder="e.g. IT, John, Ana...">
-                                <div id="add-watchers-suggestions" class="list-group" style="position:absolute; top:100%; left:0; right:0; z-index:1000; display:none; max-height:220px; overflow-y:auto;"></div>
-                            </div>
-                            <button type="submit" class="btn btn-primary btn-sm mt-2">Add Watchers</button>
-                        </form>
-                    </div>
-                    {% endif %}
-                </div>
-
-                <!-- STATUS CHANGE & ACTIONS -->
-                <div class="mb-3">
-                    {% set can_change_status = (session.role == 'admin') or ((session.user_id|string) == (ticket[7]|string)) or ((session.user_id|string) == (ticket[6]|string)) %}
-                    
-                    {% if can_change_status %}
-                    <div class="d-flex align-items-center gap-3 mb-3">
-                        <strong>Quick Status Change:</strong>
-                        <form method="POST" action="{{ url_for('update_ticket_status') }}" class="d-inline-flex align-items-center gap-2">
-                            <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
-                            <select name="status" class="form-select form-select-sm" style="width: 200px;" onchange="this.form.submit()">
-                                <option value="">Change status...</option>
-                                {% if ticket[5] in ['new', 'assigned'] and (session.role == 'admin' or (session.user_id|string) == (ticket[7]|string)) %}
-                                <option value="in_progress">▶️ Start Work</option>
-                                {% endif %}
-                                {% if ticket[5] == 'in_progress' and (session.role == 'admin' or (session.user_id|string) == (ticket[7]|string)) %}
-                                <option value="awaiting_confirmation">✅ Mark Complete</option>
-                                {% endif %}
-                                {% if ticket[5] == 'awaiting_confirmation' and (session.user_id|string) == (ticket[6]|string) %}
-                                <option value="closed">✔️ Confirm & Close</option>
-                                <option value="in_progress">🔄 Needs More Work</option>
-                                {% endif %}
-                                {% if session.role == 'admin' and ticket[5] != 'closed' %}
-                                <option value="closed">❌ Force Close</option>
-                                {% endif %}
-                                {% if ticket[5] == 'closed' and (session.role == 'admin' or (session.user_id|string) == (ticket[6]|string) or (session.user_id|string) == (ticket[7]|string)) %}
-                                <option value="in_progress">🔄 Reopen Ticket</option>
-                                {% endif %}
-                            </select>
-                        </form>
-                    </div>
-                    {% endif %}
-                    
-                    <!-- ADDITIONAL ACTIONS -->
-                    {% if session.role == 'admin' and ticket[5] != 'closed' %}
-                    <div class="mb-2">
-                        <strong class="text-muted small">Admin Actions:</strong>
-                        <div class="d-flex flex-wrap gap-2 mt-1">
-                            {% if session.user_id != ticket[7] %}
-                            <form method="POST" action="{{ url_for('update_ticket_status') }}" class="d-inline">
-                                <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
-                                <button type="submit" name="status" value="assigned" class="btn btn-sm btn-outline-primary">Assign to Me</button>
-                            </form>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% endif %}
-                </div>
-
-
-                <!-- USER ACTIONS -->
-                {% if (session.user_id|string) == (ticket[6]|string) and ticket[5] != 'closed' %}
-                <div class="mb-3">
-                    <h6>Your Actions:</h6>
-                    <div class="d-flex flex-wrap gap-2">
-                        {% if ticket[5] == 'awaiting_confirmation' %}
-                        <form method="POST" action="{{ url_for('update_ticket_status') }}" class="d-inline">
-                            <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
-                            <button type="submit" name="status" value="closed" class="btn btn-success">Confirm & Close</button>
-                            <button type="submit" name="status" value="in_progress" class="btn btn-warning">Needs More Work</button>
-                        </form>
-                        {% else %}
-                        <form method="POST" action="{{ url_for('mark_resolved', ticket_id=ticket[0]) }}" class="d-inline">
-                            <button type="submit" class="btn btn-success" onclick="return confirm('Mark this ticket as resolved?')">Request Resolve</button>
-                        </form>
-                        {% endif %}
-
-                        {% if ticket[5] in ['new', 'assigned'] and (session.user_id != ticket[7] or session.role == 'admin') %}
-                        {% if can_manage %}
-                        <a href="{{ url_for('edit_ticket', ticket_id=ticket[0]) }}" class="btn btn-outline-warning">Edit Ticket</a>
-                        {% endif %}
-                        {% endif %}
-                    </div>
-                </div>
-                {% endif %}
-
-                <!-- REOPEN TICKET -->
-                {% if ticket[5] == 'closed' %}
-                {% set can_reopen = (session.role=='admin' or (session.user_id|string)==(ticket[6]|string) or (session.user_id|string)==(ticket[7]|string)) %}
-                {% if can_reopen %}
-                <div class="mb-3">
-                    <h6>Reopen Ticket:</h6>
-                    <form method="POST" action="{{ url_for('reopen_ticket', ticket_id=ticket[0]) }}" class="d-inline">
-                        <button type="submit" class="btn btn-warning" onclick="return confirm('Reopen this ticket?')">🔄 Reopen Ticket</button>
-                    </form>
-                </div>
-                {% endif %}
-                {% endif %}
-
+                <div class="preserve-whitespace ticket-description">{{ ticket[2] }}</div>
             </div>
         </div>
 
+        <!-- WORKFLOW ACTIONS -->
+        {% set show_admin_actions = session.role == 'admin' and ticket[5] != 'closed' and session.user_id != ticket[7] %}
+        {% set show_user_actions = (session.user_id|string) == (ticket[6]|string) and ticket[5] != 'closed' %}
+        {% set can_reopen = ticket[5] == 'closed' and (session.role=='admin' or (session.user_id|string)==(ticket[6]|string) or (session.user_id|string)==(ticket[7]|string)) %}
+        {% if show_admin_actions or show_user_actions or can_reopen %}
+        <div class="card mb-4">
+            <div class="card-body d-flex flex-wrap align-items-center gap-2">
+                <span class="text-muted small me-2"><i class="bi bi-lightning-charge"></i> Actions</span>
+
+                {% if show_admin_actions %}
+                <form method="POST" action="{{ url_for('update_ticket_status') }}" class="d-inline">
+                    <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
+                    <button type="submit" name="status" value="assigned" class="btn btn-sm btn-outline-primary"><i class="bi bi-person-plus"></i> Assign to me</button>
+                </form>
+                {% endif %}
+
+                {% if show_user_actions %}
+                    {% if ticket[5] == 'awaiting_confirmation' %}
+                    <form method="POST" action="{{ url_for('update_ticket_status') }}" class="d-inline-flex gap-2">
+                        <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
+                        <button type="submit" name="status" value="closed" class="btn btn-sm btn-success"><i class="bi bi-check2-circle"></i> Confirm &amp; close</button>
+                        <button type="submit" name="status" value="in_progress" class="btn btn-sm btn-outline-warning"><i class="bi bi-arrow-repeat"></i> Needs more work</button>
+                    </form>
+                    {% else %}
+                    <form method="POST" action="{{ url_for('mark_resolved', ticket_id=ticket[0]) }}" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-outline-success" onclick="return confirm('Mark this ticket as resolved?')"><i class="bi bi-check2"></i> Request resolve</button>
+                    </form>
+                    {% endif %}
+
+                    {% if ticket[5] in ['new', 'assigned'] and (session.user_id != ticket[7] or session.role == 'admin') %}
+                    {% if can_manage %}
+                    <a href="{{ url_for('edit_ticket', ticket_id=ticket[0]) }}" class="btn btn-sm btn-secondary"><i class="bi bi-pencil"></i> Edit ticket</a>
+                    {% endif %}
+                    {% endif %}
+                {% endif %}
+
+                {% if can_reopen %}
+                <form method="POST" action="{{ url_for('reopen_ticket', ticket_id=ticket[0]) }}" class="d-inline">
+                    <button type="submit" class="btn btn-sm btn-outline-warning" onclick="return confirm('Reopen this ticket?')"><i class="bi bi-arrow-counterclockwise"></i> Reopen ticket</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
         <!-- COMMENTS SECTION -->
-        <div class="card mt-4">
-            <div class="card-header">
-                <h5>Activity & Comments</h5>
+        <div class="card mb-4">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h5><i class="bi bi-chat-left-text me-1 text-muted"></i> Comments</h5>
+                <span class="tab-count">{{ comments|length if comments else 0 }}</span>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ url_for('add_comment') }}" class="mb-4" id="commentForm">
-                    <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
-                    <div class="mb-3">
-                        <textarea class="form-control" name="comment" id="commentTextarea" rows="4" placeholder="Type your comment..." required></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Add Comment</button>
-                </form>
-
                 <div id="comments-list">
                     {% if comments %}
                     {% for comment in comments %}
-                    <div class="comment-item mb-3 p-3 border rounded">
+                    <div class="comment-item">
+                        <span class="avatar avatar-sm comment-avatar">{{ ((comment[3] or '?').split()|map('first')|join|upper)[:2] }}</span>
                         <div class="comment-header d-flex justify-content-between">
                             <strong>{{ comment[3] }}</strong>
                             <small class="text-muted">{{ comment[2] }}</small>
                         </div>
-                        <div class="comment-body mt-2 preserve-whitespace">{{ comment[1] }}</div>
+                        <div class="comment-body preserve-whitespace">{{ comment[1] }}</div>
                     </div>
                     {% endfor %}
                     {% else %}
-                    <p class="text-muted">No comments yet.</p>
+                    <p class="text-muted small">No comments yet. Start the conversation below.</p>
                     {% endif %}
                 </div>
+
+                <form method="POST" action="{{ url_for('add_comment') }}" class="comment-composer" id="commentForm">
+                    <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
+                    <textarea class="form-control" name="comment" id="commentTextarea" rows="3" placeholder="Write a comment…" required></textarea>
+                    <div class="d-flex justify-content-end mt-2">
+                        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-send"></i> Comment</button>
+                    </div>
+                </form>
             </div>
         </div>
+
+        <!-- ACTIVITY LOG -->
+        {% if activity_log %}
+        <div class="card">
+            <div class="card-header"><h5><i class="bi bi-clock-history me-1 text-muted"></i> History</h5></div>
+            <div class="card-body">
+                <ol class="timeline">
+                    {% for log in activity_log %}
+                    <li>
+                        <div class="timeline-text">
+                            <strong>{{ log[4] }}</strong>
+                            {% if log[2] == 'reassigned' %}
+                                reassigned the ticket from <strong>{{ log[5] or 'Unassigned' }}</strong> to <strong>{{ log[6] }}</strong>
+                            {% elif log[2] == 'status_changed' %}
+                                changed status from <strong>{{ log[5]|replace('_', ' ')|title }}</strong> to <strong>{{ log[6]|replace('_', ' ')|title }}</strong>
+                            {% elif log[2] == 'watcher_added' %}
+                                added <strong>{{ log[6] }}</strong> as watcher
+                            {% elif log[2] == 'watcher_removed' %}
+                                removed <strong>{{ log[5] }}</strong> from watchers
+                            {% elif log[2] == 'attachment_uploaded' %}
+                                uploaded attachment <strong>{{ log[6] }}</strong>
+                            {% elif log[2] == 'comment_added' %}
+                                added a comment
+                            {% else %}
+                                performed action: {{ log[2] }}
+                            {% endif %}
+                        </div>
+                        <time class="timeline-time">{{ log[3] }}</time>
+                    </li>
+                    {% endfor %}
+                </ol>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <!-- SIDEBAR -->
-    <div class="col-md-4">
-        <div class="card mb-3">
-            <div class="card-header">
-                <h5>Ticket Information</h5>
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header"><h5>Details</h5></div>
+            <div class="card-body">
+                <dl class="detail-list">
+                    <dt>Status</dt>
+                    <dd><span class="pill {{ st[0] }}">{{ st[1] }}</span></dd>
+
+                    <dt>Priority</dt>
+                    <dd>
+                        {% if ticket[4] in ['low', 'medium', 'high'] %}
+                        <span class="priority priority-{{ ticket[4] }}"><span class="priority-bars"><i></i><i></i><i></i></span>{{ ticket[4].title() }}</span>
+                        {% else %}{{ ticket[4] }}{% endif %}
+                    </dd>
+
+                    <dt>Category</dt>
+                    <dd>{{ ticket[12] or '—' }}</dd>
+
+                    <dt>Requester</dt>
+                    <dd>
+                        <span class="person"><span class="avatar avatar-sm">{{ ((ticket[13] or '?').split()|map('first')|join|upper)[:2] }}</span><span>{{ ticket[13] }}</span></span>
+                    </dd>
+
+                    <dt>Assignee</dt>
+                    <dd>
+                        {% if ticket[14] and ticket[14] != 'IT' %}
+                        <span class="person"><span class="avatar avatar-sm">{{ (ticket[14].split()|map('first')|join|upper)[:2] }}</span><span>{{ ticket[14] }}</span></span>
+                        {% else %}
+                        <span class="pill pill-outline"><i class="bi bi-people"></i> IT queue</span>
+                        {% endif %}
+                    </dd>
+
+                    <dt>Due date</dt>
+                    <dd>
+                        {% if ticket[11] %}
+                            {% set due = (ticket[11]|string)[:10] %}
+                            {% if ticket[5] != 'closed' and due < now().strftime('%Y-%m-%d') %}
+                            <span class="pill pill-red no-dot"><i class="bi bi-exclamation-circle"></i> {{ due }} · overdue</span>
+                            {% else %}{{ (ticket[11]|string)[:16] }}{% endif %}
+                        {% else %}<span class="text-muted">None</span>{% endif %}
+                    </dd>
+
+                    <dt>Created</dt>
+                    <dd class="date-cell">{{ ticket[9] }}</dd>
+
+                    <dt>Updated</dt>
+                    <dd class="date-cell">{{ ticket[10] }}</dd>
+                </dl>
+
+                {% if can_manage %}
+                <form method="POST" action="{{ url_for('reassign_ticket', ticket_id=ticket[0]) }}" class="reassign-box">
+                    <label for="new_assigned_to" class="form-label small text-muted mb-1">Reassign to</label>
+                    <div class="d-flex gap-2">
+                        <select name="new_assigned_to" id="new_assigned_to" class="form-select form-select-sm" required>
+                        <option value="">Select user</option>
+                        {% if session.role == 'admin' and it_admins %}
+                        <optgroup label="IT Admins">
+                            <option value="IT" {% if ticket[7] is none or ticket[7] == 'IT' %}selected{% endif %}>IT (Unassigned)</option>
+
+                            {% for admin in it_admins %}
+                            <option value="{{ admin[0] }}" {% if admin[0]|string == ticket[7]|string %}selected{% endif %}>{{ admin[1] }}</option>
+                            {% endfor %}
+                        </optgroup>
+                        {% endif %}
+                        <optgroup label="Users">
+                            {% for user in users %}
+                            <option value="{{ user[0] }}" {% if user[0]|string == ticket[7]|string %}selected{% endif %}>{{ user[1] }}</option>
+                            {% endfor %}
+                        </optgroup>
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-outline-primary">Assign</button>
+                    </div>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- WATCHERS -->
+        <div class="card mb-4">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h5><i class="bi bi-eye me-1 text-muted"></i> Watchers</h5>
+                <span class="tab-count">{{ watchers|length if watchers else 0 }}</span>
             </div>
             <div class="card-body">
-                <p><strong>Status:</strong> 
-                <span class="badge bg-{{ 'success' if ticket[5]=='closed' else 'primary' if ticket[5]=='in_progress' else 'warning' if ticket[5]=='awaiting_confirmation' else 'secondary' }}">
-                    {{ ticket[5].replace('_', ' ').title() }}
-                </span>
-                </p>
-                <p><strong>Priority:</strong> 
-                <span class="badge bg-{{ 'danger' if ticket[4]=='high' else 'warning' if ticket[4]=='medium' else 'info' }}">
-                    {{ ticket[4].title() }}
-                </span>
-                </p>
-                <p><strong>Category:</strong> {{ ticket[12] }}</p>
-                <p><strong>Created By:</strong> {{ ticket[13] }}</p>
-                <p><strong>Assigned To:</strong> {{ ticket[14] or 'IT' }}</p>
-                <p><strong>Created:</strong> {{ ticket[9] }}</p>
-                <p><strong>Due Date:</strong> {{ (ticket[11]|string)[:16] if ticket[11] else 'N/A' }}</p>
-                <p><strong>Last Updated:</strong> {{ ticket[10] }}</p>
+                {% if watchers %}
+                <div class="d-flex flex-wrap gap-2">
+                    {% for watcher in watchers %}
+                    <span class="watcher-chip">
+                        <span class="avatar avatar-sm">{{ ((watcher[1] or '?').split()|map('first')|join|upper)[:2] }}</span>
+                        {{ watcher[1] }}
+                        {% set can_remove = (session.role=='admin' or (session.user_id|string)==(ticket[6]|string) or session.user_id==watcher[0]) %}
+                        {% if can_remove %}
+                        <form method="POST" action="{{ url_for('remove_watcher', ticket_id=ticket[0]) }}" class="d-inline m-0">
+                            <input type="hidden" name="watcher_id" value="{{ watcher[0] }}">
+                            <button type="submit" class="watcher-remove" aria-label="Remove {{ watcher[1] }}" onclick="return confirm('Remove {{ watcher[1] }}?')"><i class="bi bi-x"></i></button>
+                        </form>
+                        {% endif %}
+                    </span>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted small mb-0">Nobody is watching this ticket.</p>
+                {% endif %}
+
+                {% set is_watcher = watchers|selectattr(0, "equalto", session.user_id)|list|length > 0 %}
+                {% if is_watcher %}
+                <div class="mt-3 d-flex align-items-center gap-2 flex-wrap">
+                    {% if is_muted %}
+                    <form method="POST" action="{{ url_for('unmute_ticket', ticket_id=ticket[0]) }}" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-outline-success"><i class="bi bi-bell"></i> Unmute</button>
+                    </form>
+                    <small class="text-muted">You won't receive emails for this ticket</small>
+                    {% else %}
+                    <form method="POST" action="{{ url_for('mute_ticket', ticket_id=ticket[0]) }}" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-secondary"><i class="bi bi-bell-slash"></i> Mute</button>
+                    </form>
+                    <small class="text-muted">You're receiving emails for this ticket</small>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {% if can_manage %}
+                <form method="POST" action="{{ url_for('add_watchers', ticket_id=ticket[0]) }}" class="mt-3">
+                    <div class="position-relative">
+                        <label class="form-label small text-muted mb-1" for="add_watchers_input">Add watchers</label>
+                        <div class="d-flex gap-2">
+                            <input type="text" id="add_watchers_input" name="watchers" class="form-control form-control-sm" autocomplete="off" placeholder="e.g. IT, John, Ana…">
+                            <button type="submit" class="btn btn-sm btn-outline-primary">Add</button>
+                        </div>
+                        <div id="add-watchers-suggestions" class="list-group" style="position:absolute; top:100%; left:0; right:0; z-index:1000; display:none; max-height:220px; overflow-y:auto;"></div>
+                    </div>
+                </form>
+                {% endif %}
             </div>
         </div>
 
         <!-- ATTACHMENTS -->
-        <div class="card">
-            <div class="card-header">
-                <h5>Attachments</h5>
+        <div class="card mb-4">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h5><i class="bi bi-paperclip me-1 text-muted"></i> Attachments</h5>
+                <span class="tab-count">{{ attachments|length if attachments else 0 }}</span>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ url_for('upload_attachment') }}" enctype="multipart/form-data" class="mb-3" id="attachmentForm">
-                    <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
-                    <div class="mb-2">
-                        <input type="file" class="form-control form-control-sm" name="file" id="attachmentFileInput" multiple>
-                    </div>
-                    <div id="pasteZone" style="border:2px dashed #bbb; padding:12px; border-radius:8px; min-height:44px; background:#f9f9f9; cursor:pointer; text-align:center; color:#888;">
-                        Click here or press Ctrl+V to paste images (max 5MB)
-                    </div>
-                    <div id="pastePreviews" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;"></div>
-                    <button type="submit" class="btn btn-sm btn-outline-primary mt-2 w-100">Upload Files</button>
-                </form>
-
                 {% if attachments %}
+                <div class="d-grid gap-2 mb-3">
                 {% for attachment in attachments %}
-                <div class="mb-2 p-2 border rounded d-flex justify-content-between align-items-center">
-                    <div>
-                        <a href="{{ url_for('download_attachment', attachment_id=attachment[0]) }}" class="text-decoration-none">
-                            📎 {{ attachment[2] }}
-                        </a>
-                        <small class="text-muted d-block">{{ attachment[3] }}</small>
+                <div class="attachment-row">
+                    <span class="attachment-icon"><i class="bi bi-file-earmark"></i></span>
+                    <div class="min-w-0 flex-grow-1">
+                        <a href="{{ url_for('download_attachment', attachment_id=attachment[0]) }}" class="d-block text-truncate fw-medium">{{ attachment[2] }}</a>
+                        <small class="text-muted">{{ attachment[3] }}</small>
                     </div>
                     {% if session.role=='admin' or (session.user_id|string)==(ticket[6]|string) %}
                     <form method="POST" action="{{ url_for('delete_attachment', attachment_id=attachment[0]) }}" class="d-inline">
-                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this attachment?')">🗑️</button>
+                        <button type="submit" class="btn btn-icon btn-sm" title="Delete attachment" aria-label="Delete attachment" onclick="return confirm('Delete this attachment?')"><i class="bi bi-trash3"></i></button>
                     </form>
                     {% endif %}
                 </div>
                 {% endfor %}
-                {% else %}
-                <p class="text-muted">No attachments</p>
+                </div>
                 {% endif %}
+
+                <form method="POST" action="{{ url_for('upload_attachment') }}" enctype="multipart/form-data" id="attachmentForm">
+                    <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
+                    <div class="mb-2">
+                        <input type="file" class="form-control form-control-sm" name="file" id="attachmentFileInput" multiple>
+                    </div>
+                    <div id="pasteZone" class="paste-zone">
+                        <i class="bi bi-clipboard-plus"></i> Click here or press Ctrl+V to paste images (max 5MB)
+                    </div>
+                    <div id="pastePreviews" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;"></div>
+                    <button type="submit" class="btn btn-sm btn-secondary mt-2 w-100"><i class="bi bi-upload"></i> Upload files</button>
+                </form>
             </div>
         </div>
-
 
         <!-- QUICK ACTIONS -->
-        <div class="card mt-3">
-            <div class="card-header">
-                <h5>Quick Actions</h5>
-            </div>
-            <div class="card-body">
-                {% if session.role == 'admin' %}
-                <div class="d-grid gap-2">
-                    {% if ticket[5] != 'closed' %}
-                    <form method="POST" action="{{ url_for('update_ticket_status') }}">
-                        <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
-                        <button type="submit" name="status" value="closed" class="btn btn-outline-danger btn-sm" onclick="return confirm('Force close this ticket?')">Force Close</button>
-                    </form>
-                    {% endif %}
-                </div>
-                {% else %}
-                <div class="d-grid gap-2">
-                    {% if ticket[5] != 'closed' %}
-                    <a href="{{ url_for('create_ticket') }}" class="btn btn-outline-primary btn-sm">Create Related Ticket</a>
-                    {% endif %}
-                </div>
-                {% endif %}
-            </div>
-        </div>
+        {% if session.role == 'admin' and ticket[5] != 'closed' %}
+        <form method="POST" action="{{ url_for('update_ticket_status') }}">
+            <input type="hidden" name="ticket_id" value="{{ ticket[0] }}">
+            <button type="submit" name="status" value="closed" class="btn btn-outline-danger btn-sm w-100" onclick="return confirm('Force close this ticket?')"><i class="bi bi-x-circle"></i> Force close ticket</button>
+        </form>
+        {% elif session.role != 'admin' and ticket[5] != 'closed' %}
+        <a href="{{ url_for('create_ticket') }}" class="btn btn-secondary btn-sm w-100"><i class="bi bi-plus-lg"></i> Create related ticket</a>
+        {% endif %}
     </div>
-</div>
-
-<!-- ACTIVITY LOG -->
-{% if activity_log %}
-<div class="card mt-4">
-    <div class="card-header" style="background-color: #f8f9fa; padding: 0.75rem 1rem;">
-        <h6 class="mb-0 text-muted" style="font-size: 0.875rem;">
-            <i class="bi bi-clock-history"></i> Activity History
-        </h6>
-    </div>
-    <div class="card-body" style="padding: 0.75rem;">
-        <div class="list-group list-group-flush">
-            {% for log in activity_log %}
-            <div class="list-group-item border-0" style="padding: 0.5rem 0; font-size: 0.8rem; color: #6c757d;">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div style="flex: 1;">
-                        <strong style="color: #495057;">{{ log[4] }}</strong>
-                        
-                        {% if log[2] == 'reassigned' %}
-                            <span>reassigned ticket from <strong>{{ log[5] or 'Unassigned' }}</strong> to <strong>{{ log[6] }}</strong></span>
-                        {% elif log[2] == 'status_changed' %}
-                            <span>changed status from <strong>{{ log[5]|replace('_', ' ')|title }}</strong> to <strong>{{ log[6]|replace('_', ' ')|title }}</strong></span>
-                        {% elif log[2] == 'watcher_added' %}
-                            <span>added <strong>{{ log[6] }}</strong> as watcher</span>
-                        {% elif log[2] == 'watcher_removed' %}
-                            <span>removed <strong>{{ log[5] }}</strong> from watchers</span>
-                        {% elif log[2] == 'attachment_uploaded' %}
-                            <span>uploaded attachment <strong>{{ log[6] }}</strong></span>
-                        {% elif log[2] == 'comment_added' %}
-                            <span>added a comment</span>
-                        {% else %}
-                            <span>performed action: {{ log[2] }}</span>
-                        {% endif %}
-                    </div>
-                    <small class="text-muted" style="white-space: nowrap; margin-left: 1rem; font-size: 0.75rem;">
-                        {{ log[3] }}
-                    </small>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<!-- BACK BUTTONS -->
-<div class="mt-3">
-    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">← Back to Dashboard</a>
-    {% if session.role=='admin' %}
-    <a href="{{ url_for('admin_panel') }}" class="btn btn-outline-secondary">Admin Panel</a>
-    {% endif %}
 </div>
 
 <!-- AUTOCOMPLETE SCRIPT -->
@@ -675,55 +655,6 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 
 <!-- MATCH DASHBOARD STYLING -->
-<style>
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-}
-.card {
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-    border-radius: 0.5rem;
-}
-.card-header {
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
-    padding: 1rem 1.25rem;
-}
-.card-header h4, .card-header h5 {
-    margin-bottom: 0;
-    font-size: 1.1rem;
-    font-weight: 600;
-}
-.badge {
-    font-weight: 500;
-    padding: 0.4em 0.7em;
-    font-size: 0.875rem;
-}
-.btn {
-    font-weight: 500;
-}
-.btn-sm {
-    font-size: 0.875rem;
-    padding: 0.375rem 0.75rem;
-}
-.preserve-whitespace {
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    font-size: 0.95rem;
-    line-height: 1.6;
-}
-.comment-item {
-    background-color: #f8f9fa;
-}
-.comment-body {
-    font-size: 0.95rem;
-    line-height: 1.6;
-}
-.form-control, .form-select {
-    font-size: 0.95rem;
-}
-textarea.form-control {
-    font-family: inherit;
-}
-</style>
+
 
 {% endblock %}
