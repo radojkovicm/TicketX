@@ -17,6 +17,7 @@ Commands:
       [--created DATE] [--closed DATE]   (record past work with its real date)
       (refuses with exit code 3 and lists the tickets when a similar one already exists)
   find WORDS...               search open and closed tickets (all words must match)
+  timeline [--project P] [--since DATE]   every ticket by date: when it was created (and finished)
   comment ID TEXT [--date DATE]   (TEXT may be "-" to read stdin)
   status ID new|assigned|in_progress|awaiting_confirmation|closed
   edit ID [--title T] [--desc TEXT] [--priority P] [--due D|none] [--project P]
@@ -134,6 +135,7 @@ def main():
     ed.add_argument("--title"); ed.add_argument("--desc"); ed.add_argument("--priority")
     ed.add_argument("--due"); ed.add_argument("--project")
     fd = sub.add_parser("find"); fd.add_argument("words", nargs="+")
+    tl = sub.add_parser("timeline"); tl.add_argument("--project"); tl.add_argument("--since", metavar="DATE")
     sub.add_parser("whoami")
     args = parser.parse_args()
     cfg = load_config(args.actor)
@@ -193,6 +195,14 @@ def main():
             body["due_date"] = None if args.due == "none" else args.due
         t = call(cfg, "PATCH", "/tickets/%d" % args.id, body)
         print(line(t))
+    elif args.cmd == "timeline":
+        tickets = call(cfg, "GET", "/tickets" + query(status="all", project=args.project))
+        for t in sorted(tickets, key=lambda x: (x["created_at"], x["id"])):
+            if args.since and t["created_at"][:10] < args.since:
+                continue
+            start, end = t["created_at"][:10], t["updated_at"][:10]
+            span = start if t["status"] != "closed" or start == end else start + " -> " + end
+            print("%-24s %-21s %-9s #%d %s" % (span, t["status"], t["project"] or "-", t["id"], t["title"]))
     elif args.cmd == "find":
         for t in call(cfg, "GET", "/tickets" + query(status="all", q=" ".join(args.words))):
             print(line(t))

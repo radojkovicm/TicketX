@@ -7,3 +7,4 @@ When the user says "dodaj na ticketx", "ticketx", or asks what is open or in wha
 3. Comment with what was done, decided and what is next. A few lines, no transcripts, no secrets.
 4. Status: `in_progress` when work starts, `awaiting_confirmation` when done, never `closed` without the user's confirmation.
 5. Report the ticket number and what you wrote. GitHub stays the place for code issues and PRs; link them from the ticket.
+6. Past questions ("kada smo uradili X", "sta smo radili"): do not guess. `ticketx timeline [--project P] [--since YYYY-MM-DD] 2>&1 | head -c 6000`, `ticketx find <words>`, `ticketx show <id>`. Answer with the date and ticket number; if there is no record, say so.

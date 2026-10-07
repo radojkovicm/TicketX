@@ -17,6 +17,10 @@ CLI: `~/.local/bin/ticketx` (always call it as `TICKETX_AS=claude-code ~/.local/
 4. **Status** when it changes: `in_progress` when work starts, `awaiting_confirmation` when finished and the user must check, `closed` only when the user confirms.
 5. Finish by telling the user the ticket number and what was written.
 
+## Pitanja o prošlosti
+
+Kad korisnik pita "kada smo uradili X" / "šta smo radili": ne pogađaj, pogledaj TicketX. `ticketx timeline [--project P] [--since YYYY-MM-DD]` daje sve tikete po datumu (početak -> kraj), `ticketx find <reči>` traži po temi, `ticketx show <id>` daje opis i komentare. Istorijski tiketi imaju prave datume (backdated) i izvor u opisu (commit, decisions.md). Odgovori sa datumom i brojem tiketa; ako zapisa nema, reci da ga nema umesto da nagađaš.
+
 ## Rules
 
 - Do not write secrets, passwords, tokens or personal data into tickets or comments.

@@ -59,6 +59,7 @@ ticketx add --project GetSuper --title "Fix login" --desc "..." --priority high 
                                         # exit code 3 + list of similar tickets instead of a duplicate; --force overrides
 ticketx comment 12 "Deployed to staging, next: smoke test"
 ticketx status 12 in_progress
+ticketx timeline --project Homelab      # every ticket by date, 'start -> end' when finished
 ticketx find backup vps                 # always before creating: open AND closed tickets
 ticketx list --status all -q login
 ticketx show 12
