@@ -157,6 +157,47 @@ class ApiTests(unittest.TestCase):
             session["role"] = "admin"
         self.assertEqual(self.client.get("/api/v1/tickets").status_code, 401)
 
+    def test_new_tickets_are_assigned_to_the_token_user(self):
+        ticket = self.create().get_json()
+        self.assertEqual(ticket["assigned_to"], "1")
+
+    def test_similar_ticket_is_rejected_with_candidates(self):
+        first = self.create(title="Uvesti backup za VPS").get_json()["id"]
+        for title in ("uvesti backup za VPS", "Backup za VPS - uvesti", "Uvesti  BACKUP za vps!"):
+            response = self.create(title=title)
+            self.assertEqual(response.status_code, 409, title)
+            self.assertEqual(response.get_json()["similar"][0]["id"], first)
+        self.assertEqual(len(self.client.get("/api/v1/tickets", headers=self.write).get_json()), 1)
+
+    def test_unrelated_ticket_is_allowed(self):
+        self.create(title="Uvesti backup za VPS")
+        self.assertEqual(self.create(title="Podesiti DNS za getsuper.si").status_code, 201)
+
+    def test_force_creates_despite_similar_ticket(self):
+        self.create(title="Uvesti backup za VPS")
+        self.assertEqual(self.create(title="Uvesti backup za VPS", force=True).status_code, 201)
+
+    def test_diacritics_do_not_hide_duplicates(self):
+        self.create(title="Podesiti đurđevak čitač")
+        self.assertEqual(self.create(title="podesiti djurdjevak citac").status_code, 409)
+
+    def test_recently_closed_ticket_still_counts_as_duplicate(self):
+        ticket_id = self.create(title="Uvesti backup za VPS").get_json()["id"]
+        self.client.patch(f"/api/v1/tickets/{ticket_id}", json={"status": "closed"}, headers=self.write)
+        self.assertEqual(self.create(title="Uvesti backup za VPS").status_code, 409)
+        with closing(sqlite3.connect(db_path())) as conn:
+            conn.execute("UPDATE tickets SET updated_at = datetime('now', 'localtime', '-30 days') WHERE id = ?",
+                         (ticket_id,))
+            conn.commit()
+        self.assertEqual(self.create(title="Uvesti backup za VPS").status_code, 201)
+
+    def test_find_matches_all_words_in_any_order(self):
+        self.create(title="Uvesti backup za VPS", description="Vaultwarden prvo")
+        found = lambda q: self.client.get("/api/v1/tickets?status=all&q=" + q, headers=self.write).get_json()
+        self.assertEqual(len(found("vps+backup")), 1)
+        self.assertEqual(len(found("vaultwarden+backup")), 1)
+        self.assertEqual(len(found("backup+nextcloud")), 0)
+
     def test_no_delete_endpoint(self):
         ticket_id = self.create().get_json()["id"]
         self.assertEqual(self.client.delete(f"/api/v1/tickets/{ticket_id}", headers=self.write).status_code, 405)

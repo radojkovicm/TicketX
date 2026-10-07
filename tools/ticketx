@@ -13,7 +13,9 @@ Commands:
   projects
   list    [--project P] [--status open|all|STATUS] [-q TEXT]
   show ID
-  add --project P --title T [--desc TEXT | --desc-file FILE|-] [--priority low|medium|high] [--due YYYY-MM-DD]
+  add --project P --title T [--desc TEXT | --desc-file FILE|-] [--priority low|medium|high] [--due YYYY-MM-DD] [--force]
+      (refuses with exit code 3 and lists the tickets when a similar one already exists)
+  find WORDS...               search open and closed tickets (all words must match)
   comment ID TEXT            (TEXT may be "-" to read stdin)
   status ID new|assigned|in_progress|awaiting_confirmation|closed
   edit ID [--title T] [--desc TEXT] [--priority P] [--due D|none] [--project P]
@@ -67,11 +69,20 @@ def call(cfg, method, path, body=None, raw=False):
         with urllib.request.urlopen(request, timeout=20) as response:
             payload = response.read().decode("utf-8")
     except urllib.error.HTTPError as error:
+        detail = {}
         try:
-            message = json.loads(error.read().decode()).get("error", error.reason)
+            detail = json.loads(error.read().decode())
         except Exception:
-            message = error.reason
-        die("HTTP %d: %s" % (error.code, message))
+            pass
+        if error.code == 409 and detail.get("similar"):
+            print("ticketx: NOT created - similar ticket(s) already exist:", file=sys.stderr)
+            for t in detail["similar"]:
+                print("  #%d [%s] %s (%s, similarity %.2f)" % (
+                    t["id"], t["status"], t["title"], t["project"], t["similarity"]), file=sys.stderr)
+            print("Add a comment to the right one (ticketx comment ID \"...\"), or rerun with --force "
+                  "if this is really a different task.", file=sys.stderr)
+            sys.exit(3)
+        die("HTTP %d: %s" % (error.code, detail.get("error", error.reason)))
     except (urllib.error.URLError, OSError) as error:
         die("cannot reach %s (%s). Is Tailscale connected?" % (url, getattr(error, "reason", error)))
     return payload if raw else json.loads(payload)
@@ -112,11 +123,13 @@ def main():
     ad.add_argument("--project", required=True); ad.add_argument("--title", required=True)
     ad.add_argument("--desc", default=""); ad.add_argument("--desc-file")
     ad.add_argument("--priority", default="medium"); ad.add_argument("--due")
+    ad.add_argument("--force", action="store_true", help="create even if similar tickets exist")
     cm = sub.add_parser("comment"); cm.add_argument("id", type=int); cm.add_argument("text")
     st = sub.add_parser("status"); st.add_argument("id", type=int); st.add_argument("status")
     ed = sub.add_parser("edit"); ed.add_argument("id", type=int)
     ed.add_argument("--title"); ed.add_argument("--desc"); ed.add_argument("--priority")
     ed.add_argument("--due"); ed.add_argument("--project")
+    fd = sub.add_parser("find"); fd.add_argument("words", nargs="+")
     sub.add_parser("whoami")
     args = parser.parse_args()
     cfg = load_config(args.actor)
@@ -149,6 +162,8 @@ def main():
                 "description": read_text(args.desc, args.desc_file)}
         if args.due:
             body["due_date"] = args.due
+        if args.force:
+            body["force"] = True
         t = call(cfg, "POST", "/tickets", body)
         print("created #%d: %s" % (t["id"], t["title"]))
     elif args.cmd == "comment":
@@ -167,6 +182,9 @@ def main():
             body["due_date"] = None if args.due == "none" else args.due
         t = call(cfg, "PATCH", "/tickets/%d" % args.id, body)
         print(line(t))
+    elif args.cmd == "find":
+        for t in call(cfg, "GET", "/tickets" + query(status="all", q=" ".join(args.words))):
+            print(line(t))
     elif args.cmd == "whoami":
         print(json.dumps(call(cfg, "GET", "/health")))
 

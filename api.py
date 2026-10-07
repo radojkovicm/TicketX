@@ -8,11 +8,12 @@ of every comment so the history shows who did what.
 There is intentionally no delete endpoint.
 """
 import hashlib
-import json
 import re
 import secrets
 import threading
 import time
+import unicodedata
+from difflib import SequenceMatcher
 from datetime import datetime
 from functools import wraps
 
@@ -209,6 +210,60 @@ def _project_id(conn, name, create):
     return cur.lastrowid
 
 
+STOPWORDS = {
+    "the", "and", "for", "with", "from", "this", "that", "into", "ticket", "task", "add", "fix",
+    "za", "na", "da", "se", "je", "su", "sa", "od", "do", "po", "ili", "kao", "pa", "ali", "koji",
+    "dodaj", "dodati", "napravi", "napraviti", "uradi", "uraditi",
+}
+SIMILARITY_THRESHOLD = 0.72
+RECENTLY_CLOSED_DAYS = 14
+
+
+def _normalize(text):
+    """Lowercase, strip diacritics and punctuation, so 'Backup-ovi VPS-a' ~ 'backup ovi vps a'."""
+    text = unicodedata.normalize("NFKD", text.lower().replace("đ", "dj").replace("Đ", "dj"))
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", text).split())
+
+
+def _tokens(normalized):
+    return {w for w in normalized.split() if len(w) > 2 and w not in STOPWORDS}
+
+
+def title_similarity(a, b):
+    """0..1: the larger of the character-level ratio and the word overlap (Jaccard)."""
+    na, nb = _normalize(a), _normalize(b)
+    if not na or not nb:
+        return 0.0
+    if na == nb:
+        return 1.0
+    ratio = SequenceMatcher(None, na, nb).ratio()
+    ta, tb = _tokens(na), _tokens(nb)
+    jaccard = len(ta & tb) / len(ta | tb) if ta and tb else 0.0
+    # one title fully contained in the other (e.g. "Backup VPS" in "Backup VPS: Vaultwarden") counts too
+    containment = len(ta & tb) / min(len(ta), len(tb)) if ta and tb and min(len(ta), len(tb)) >= 2 else 0.0
+    return max(ratio, jaccard, containment * 0.9)
+
+
+def find_similar_tickets(conn, auth, title, limit=5):
+    clause, params = _visible(auth)
+    rows = conn.execute(
+        TICKET_SELECT + " WHERE " + clause +
+        " AND (t.status != 'closed' OR t.updated_at >= datetime('now', 'localtime', ?))",
+        params + ["-%d days" % RECENTLY_CLOSED_DAYS],
+    ).fetchall()
+    scored = []
+    for row in rows:
+        score = title_similarity(title, row[1])
+        if score >= SIMILARITY_THRESHOLD:
+            scored.append((score, row))
+    scored.sort(key=lambda item: -item[0])
+    return [
+        {"id": r[0], "title": r[1], "project": r[3], "status": r[5], "similarity": round(score, 2)}
+        for score, r in scored[:limit]
+    ]
+
+
 def _status_filter(value):
     if value in (None, "", "open"):
         return "t.status != 'closed'", []
@@ -260,10 +315,9 @@ def create_api_blueprint(valid_statuses, valid_priorities, log_ticket_activity, 
         if project:
             where.append("lower(c.name) = lower(?)")
             params.append(project.strip())
-        query = request.args.get("q", "").strip()
-        if query:
+        for word in request.args.get("q", "").split()[:8]:
             where.append("(t.title LIKE ? OR t.description LIKE ?)")
-            params += ["%" + query + "%"] * 2
+            params += ["%" + word + "%"] * 2
         conn = Database().get_connection()
         try:
             rows = conn.execute(
@@ -348,12 +402,23 @@ def create_api_blueprint(valid_statuses, valid_priorities, log_ticket_activity, 
             project_id = _project_id(conn, body.get("project"), create=True)
             if not project_id:
                 return _error(400, "project is required (max 100 chars).")
+            if not body.get("force"):
+                similar = find_similar_tickets(conn, g.api, fields["title"])
+                if similar:
+                    response = jsonify({
+                        "error": "Similar ticket(s) already exist. Comment on one of them, or send "
+                                 "\"force\": true if this is really a different task.",
+                        "similar": similar,
+                    })
+                    response.status_code = 409
+                    return response
             cur = conn.execute(
                 """INSERT INTO tickets (title, description, priority, category_id, due_date,
                                         created_by, assigned_to, is_private, status)
-                   VALUES (?, ?, ?, ?, ?, ?, 'IT', ?, 'new')""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new')""",
                 (fields["title"], fields["description"], fields["priority"], project_id,
-                 fields.get("due_date"), g.api["user_id"], fields.get("is_private", 0)),
+                 fields.get("due_date"), g.api["user_id"], str(g.api["user_id"]),
+                 fields.get("is_private", 0)),
             )
             ticket_id = cur.lastrowid
             conn.commit()
