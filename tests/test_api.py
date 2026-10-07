@@ -198,6 +198,29 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(len(found("vaultwarden+backup")), 1)
         self.assertEqual(len(found("backup+nextcloud")), 0)
 
+    def test_backdated_closed_ticket_and_comment(self):
+        response = self.create(title="Stara stvar", created_at="2026-09-23", closed_at="2026-09-24 08:30")
+        self.assertEqual(response.status_code, 201)
+        ticket = response.get_json()
+        self.assertEqual((ticket["status"], ticket["created_at"], ticket["updated_at"]),
+                         ("closed", "2026-09-23 12:00:00", "2026-09-24 08:30:00"))
+        self.client.post(f"/api/v1/tickets/{ticket['id']}/comments",
+                         json={"comment": "Tada uradjeno", "created_at": "2026-09-23 22:47"}, headers=self.write)
+        detail = self.client.get(f"/api/v1/tickets/{ticket['id']}", headers=self.write).get_json()
+        self.assertEqual(detail["comments"][0]["created_at"], "2026-09-23 22:47:00")
+        self.assertEqual(detail["updated_at"], "2026-09-24 08:30:00")
+        self.assertIn("backdated", detail["activity"][0]["details"])
+
+    def test_bad_dates_are_rejected(self):
+        self.assertEqual(self.create(created_at="2999-01-01").status_code, 400)
+        self.assertEqual(self.create(created_at="23.09.2026").status_code, 400)
+        self.assertEqual(self.create(created_at="2026-02-30").status_code, 400)
+        self.assertEqual(self.create(created_at="2026-09-24", closed_at="2026-09-23").status_code, 400)
+        ticket_id = self.create().get_json()["id"]
+        response = self.client.post(f"/api/v1/tickets/{ticket_id}/comments",
+                                    json={"comment": "x", "created_at": "2999-01-01"}, headers=self.write)
+        self.assertEqual(response.status_code, 400)
+
     def test_no_delete_endpoint(self):
         ticket_id = self.create().get_json()["id"]
         self.assertEqual(self.client.delete(f"/api/v1/tickets/{ticket_id}", headers=self.write).status_code, 405)
