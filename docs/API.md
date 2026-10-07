@@ -35,6 +35,10 @@ python manage_api_tokens.py revoke 3
 | POST | `/tickets/<id>/comments` | add `{"comment": "..."}` |
 | GET | `/context.md?project=&status=&comments=N` | **one Markdown file** with the current state (see below) |
 
+Tickets created through the API are **assigned to the token's user** and start as `new`.
+
+**Duplicate protection.** `POST /tickets` compares the new title with every visible open ticket and with tickets closed in the last 14 days (case, diacritics and punctuation are ignored; word order and sub-titles are tolerated). On a likely duplicate it answers `409` with the candidates (`id`, `title`, `status`, `project`, `similarity`) and creates nothing. Send `"force": true` only when it really is a different task. The check runs on the server, so it works no matter which chat or tool is creating the ticket. `GET /tickets?q=a+b` finds tickets containing **all** words in title or description.
+
 A *project* is a TicketX category; a project that does not exist yet is created on first use. Statuses: `new`, `assigned`, `in_progress`, `awaiting_confirmation`, `closed`. Priorities: `low`, `medium`, `high`. Dates: `YYYY-MM-DD`.
 
 There is deliberately no delete endpoint, and API actions do not send email notifications.
@@ -50,8 +54,10 @@ Returns open tickets grouped by project (high priority first), with description,
 ```bash
 ticketx context --project GetSuper      # read the state
 ticketx add --project GetSuper --title "Fix login" --desc "..." --priority high --due 2026-10-20
+                                        # exit code 3 + list of similar tickets instead of a duplicate; --force overrides
 ticketx comment 12 "Deployed to staging, next: smoke test"
 ticketx status 12 in_progress
+ticketx find backup vps                 # always before creating: open AND closed tickets
 ticketx list --status all -q login
 ticketx show 12
 ```

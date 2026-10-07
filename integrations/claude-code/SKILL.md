@@ -11,8 +11,8 @@ CLI: `~/.local/bin/ticketx` (always call it as `TICKETX_AS=claude-code ~/.local/
 
 ## Workflow
 
-1. **Look first.** `ticketx context --project <P> --comments 3` (or without `--project` for everything). Never create a ticket before checking for an existing one on the same topic.
-2. **Add:** if a matching ticket exists, add a comment; otherwise `ticketx add --project <P> --title "..." --desc "..." [--priority high] [--due YYYY-MM-DD]`. Projects: GetSuper, Homelab, TicketX, or a new name when the user names one.
+1. **Look first.** `ticketx context --project <P> --comments 3` (or without `--project` for everything), and `ticketx find <keywords>` for the topic (it also shows closed tickets). Another chat may already have created or finished the task: never create a ticket before checking.
+2. **Add:** if a matching ticket exists, add a comment; otherwise `ticketx add --project <P> --title "..." --desc "..." [--priority high] [--due YYYY-MM-DD]`. Projects: GetSuper, Homelab, TicketX, or a new name when the user names one. The server refuses likely duplicates (exit code 3, it prints the existing tickets): then comment on the right ticket instead. Use `--force` only when the task is really different. All tickets are assigned to the user automatically.
 3. **Comment** with what was done, what was decided, and what comes next (a few lines, no transcripts, never secrets): `ticketx comment <id> "..."`.
 4. **Status** when it changes: `in_progress` when work starts, `awaiting_confirmation` when finished and the user must check, `closed` only when the user confirms.
 5. Finish by telling the user the ticket number and what was written.
