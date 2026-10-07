@@ -9,6 +9,8 @@ When the user says "dodaj na ticketx", "ticketx", or asks what is open or in wha
 5. Report the ticket number and what you wrote. GitHub stays the place for code issues and PRs; link them from the ticket.
 6. Past questions ("kada smo uradili X", "sta smo radili"): do not guess. `ticketx timeline [--project P] [--since YYYY-MM-DD] 2>&1 | head -c 6000`, `ticketx find <words>`, `ticketx show <id>`. Answer with the date and ticket number; if there is no record, say so.
 
+7. "Look at ticketx, let's resolve open items" (no ticket given): run `TICKETX_AS=codex ~/.local/bin/ticketx list 2>&1 | head -c 8000` (compact; never the full `context` for all projects, ~48 KB). Summarize in about 10 lines: overdue or due within 7 days first, then `high` priority, then counts per project. Propose 3 candidates and ask which one. For the chosen ticket: `ticketx show <id>`, `ticketx status <id> in_progress`, do the work, then `ticketx comment <id> "done/decisions/next"` and `awaiting_confirmation` (only the user closes). Verify the item is not already done first: many tickets were imported from history and marked "status nepotvrđen". Needs Tailscale; say so at once if the server is unreachable.
+
 ### TicketX import mode (only when the user explicitly asks, e.g. "uploaduj sve na ticketx")
 
 Never start this on your own. When asked:

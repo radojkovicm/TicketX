@@ -17,6 +17,15 @@ CLI: `~/.local/bin/ticketx` (always call it as `TICKETX_AS=claude-code ~/.local/
 4. **Status** when it changes: `in_progress` when work starts, `awaiting_confirmation` when finished and the user must check, `closed` only when the user confirms.
 5. Finish by telling the user the ticket number and what was written.
 
+## "Pogledaj ticketx, idemo da rešavamo otvorene stavke"
+
+Kad korisnik dođe i kaže nešto u tom smislu (bez navedenog tiketa):
+1. `TICKETX_AS=claude-code ~/.local/bin/ticketx list` (kratka lista otvorenih; NE pokreći pun `context` za sve projekte, ima ~48 KB).
+2. Predstavi stanje u 10 redova: prvo prekoračeni rokovi i rokovi u narednih 7 dana (kolona `due`), pa `high` prioritet, pa broj po projektima. Predloži 3 kandidata za danas i pitaj koji.
+3. Za izabrani tiket: `ticketx show <id>` (opis + komentari), `ticketx status <id> in_progress`, radi, a na kraju `ticketx comment <id> "urađeno/odluke/sledeće"` i `awaiting_confirmation` (zatvara samo korisnik).
+4. Pre rada proveri da stavka nije već urađena (stanje na sistemu/repou), jer su mnogi tiketi uvezeni iz istorije i označeni "status nepotvrđen". Ako je urađena, reci i predloži zatvaranje.
+5. Alat radi samo kad je Tailscale uključen na Macu. Ako server nije dostupan, reci to odmah.
+
 ## Pitanja o prošlosti
 
 Kad korisnik pita "kada smo uradili X" / "šta smo radili": ne pogađaj, pogledaj TicketX. `ticketx timeline [--project P] [--since YYYY-MM-DD]` daje sve tikete po datumu (početak -> kraj), `ticketx find <reči>` traži po temi, `ticketx show <id>` daje opis i komentare. Istorijski tiketi imaju prave datume (backdated) i izvor u opisu (commit, decisions.md). Odgovori sa datumom i brojem tiketa; ako zapisa nema, reci da ga nema umesto da nagađaš.
