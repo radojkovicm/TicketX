@@ -14,7 +14,7 @@ import threading
 import time
 import unicodedata
 from difflib import SequenceMatcher
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 
 from flask import Blueprint, Response, g, jsonify, request
@@ -25,6 +25,7 @@ TOKEN_PREFIX = "tx_"
 VALID_SCOPES = {"read", "write"}
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,39}$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+WHEN_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2})(?::(\d{2}))?)?$")
 MAX_TITLE = 200
 MAX_DESCRIPTION = 20_000
 MAX_COMMENT = 10_000
@@ -264,6 +265,25 @@ def find_similar_tickets(conn, auth, title, limit=5):
     ]
 
 
+def parse_when(value, timezone_name=None):
+    """Parse 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM[:SS]' into 'YYYY-MM-DD HH:MM:SS'.
+
+    Used to record work that happened earlier. Dates without a time get 12:00:00.
+    Returns (text, error). Future moments are rejected.
+    """
+    match = WHEN_RE.match(value.strip()) if isinstance(value, str) else None
+    if not match:
+        return None, "date must be YYYY-MM-DD or YYYY-MM-DD HH:MM."
+    text = "%s %s:%s" % (match.group(1), match.group(2) or "12:00", match.group(3) or "00")
+    try:
+        moment = datetime.strptime(text, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return None, "date is not a real calendar date/time."
+    if moment > datetime.now() + timedelta(minutes=5):
+        return None, "date must not be in the future."
+    return text, None
+
+
 def _status_filter(value):
     if value in (None, "", "open"):
         return "t.status != 'closed'", []
@@ -397,6 +417,18 @@ def create_api_blueprint(valid_statuses, valid_priorities, log_ticket_activity, 
         fields, error = _validated_fields(body, partial=False)
         if error:
             return _error(400, error)
+        created_at = closed_at = None
+        if body.get("created_at"):
+            created_at, error = parse_when(body["created_at"])
+            if error:
+                return _error(400, "created_at: " + error)
+        if body.get("closed_at"):
+            closed_at, error = parse_when(body["closed_at"])
+            if error:
+                return _error(400, "closed_at: " + error)
+            if created_at and closed_at < created_at:
+                return _error(400, "closed_at must not be before created_at.")
+            fields.setdefault("status", "closed")
         conn = Database().get_connection()
         try:
             project_id = _project_id(conn, body.get("project"), create=True)
@@ -412,20 +444,25 @@ def create_api_blueprint(valid_statuses, valid_priorities, log_ticket_activity, 
                     })
                     response.status_code = 409
                     return response
+            now_sql = "datetime('now', 'localtime')"
             cur = conn.execute(
                 """INSERT INTO tickets (title, description, priority, category_id, due_date,
-                                        created_by, assigned_to, is_private, status)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new')""",
+                                        created_by, assigned_to, is_private, status, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, %s), COALESCE(?, ?, %s))""" % (now_sql, now_sql),
                 (fields["title"], fields["description"], fields["priority"], project_id,
                  fields.get("due_date"), g.api["user_id"], str(g.api["user_id"]),
-                 fields.get("is_private", 0)),
+                 fields.get("is_private", 0), fields.get("status", "new"),
+                 created_at, closed_at, created_at),
             )
             ticket_id = cur.lastrowid
             conn.commit()
             row = _fetch_ticket(conn, g.api, ticket_id)
         finally:
             conn.close()
-        log_ticket_activity(ticket_id, g.api["user_id"], "created_via_api", None, None, g.api["actor"])
+        details = g.api["actor"]
+        if created_at or closed_at:
+            details += " (backdated: created_at=%s, closed_at=%s)" % (created_at, closed_at)
+        log_ticket_activity(ticket_id, g.api["user_id"], "created_via_api", None, None, details)
         response = jsonify(_ticket_dict(row))
         response.status_code = 201
         return response
@@ -477,18 +514,29 @@ def create_api_blueprint(valid_statuses, valid_priorities, log_ticket_activity, 
         if not text or len(text) > MAX_COMMENT:
             return _error(400, "comment is required (max %d chars)." % MAX_COMMENT)
         stamped = "[%s] %s" % (g.api["actor"], text)
+        created_at = None
+        if isinstance(body, dict) and body.get("created_at"):
+            created_at, error = parse_when(body["created_at"])
+            if error:
+                return _error(400, "created_at: " + error)
         conn = Database().get_connection()
         try:
             if not _fetch_ticket(conn, g.api, ticket_id):
                 return _error(404, "Ticket not found.")
-            cur = conn.execute(
-                "INSERT INTO comments (ticket_id, user_id, comment) VALUES (?, ?, ?)",
-                (ticket_id, g.api["user_id"], stamped),
-            )
-            conn.execute(
-                "UPDATE tickets SET updated_at = datetime('now', 'localtime') WHERE id = ?",
-                (ticket_id,),
-            )
+            if created_at:
+                cur = conn.execute(
+                    "INSERT INTO comments (ticket_id, user_id, comment, created_at) VALUES (?, ?, ?, ?)",
+                    (ticket_id, g.api["user_id"], stamped, created_at),
+                )
+            else:
+                cur = conn.execute(
+                    "INSERT INTO comments (ticket_id, user_id, comment) VALUES (?, ?, ?)",
+                    (ticket_id, g.api["user_id"], stamped),
+                )
+                conn.execute(
+                    "UPDATE tickets SET updated_at = datetime('now', 'localtime') WHERE id = ?",
+                    (ticket_id,),
+                )
             conn.commit()
             comment_id = cur.lastrowid
         finally:
