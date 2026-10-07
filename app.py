@@ -314,6 +314,16 @@ user_model = UserModel()
 ticket_model = TicketModel()
 category_model = CategoryModel()
 
+if not DEMO_MODE:
+    from api import create_api_blueprint  # noqa: E402
+
+    # Bearer-token API: no cookies are used, so CSRF protection does not apply to it.
+    api_blueprint = create_api_blueprint(
+        VALID_STATUSES, VALID_PRIORITIES, log_ticket_activity, os.getenv("TIMEZONE", "Europe/Belgrade")
+    )
+    csrf.exempt(api_blueprint)
+    app.register_blueprint(api_blueprint)
+
 
 @app.before_request
 def restore_public_demo_data():

@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+"""ticketx - command line client for the TicketX API (stdlib only, Python 3.8+).
+
+Used by people, Claude Code and Codex alike. Output goes to stdout; errors to stderr.
+
+Setup: ~/.config/ticketx/config.json (mode 600)
+  {"url": "https://ticketx.example.ts.net", "tokens": {"claude-code": "tx_...", "codex": "tx_..."}}
+or the environment variables TICKETX_URL and TICKETX_TOKEN.
+Pick the token with --as NAME or TICKETX_AS (default: the only token, or "me").
+
+Commands:
+  context [--project P] [--status open|all|STATUS] [--comments N] [--write FILE]
+  projects
+  list    [--project P] [--status open|all|STATUS] [-q TEXT]
+  show ID
+  add --project P --title T [--desc TEXT | --desc-file FILE|-] [--priority low|medium|high] [--due YYYY-MM-DD]
+  comment ID TEXT            (TEXT may be "-" to read stdin)
+  status ID new|assigned|in_progress|awaiting_confirmation|closed
+  edit ID [--title T] [--desc TEXT] [--priority P] [--due D|none] [--project P]
+  whoami
+"""
+import argparse
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+
+CONFIG_PATH = os.path.expanduser("~/.config/ticketx/config.json")
+
+
+def die(message, code=1):
+    print("ticketx: " + message, file=sys.stderr)
+    sys.exit(code)
+
+
+def load_config(actor):
+    url = os.environ.get("TICKETX_URL")
+    token = os.environ.get("TICKETX_TOKEN")
+    if url and token:
+        return url.rstrip("/"), token
+    try:
+        with open(CONFIG_PATH) as handle:
+            cfg = json.load(handle)
+    except FileNotFoundError:
+        die("no config. Create %s or set TICKETX_URL and TICKETX_TOKEN." % CONFIG_PATH)
+    tokens = cfg.get("tokens", {})
+    name = actor or os.environ.get("TICKETX_AS")
+    if not name:
+        if len(tokens) == 1:
+            name = next(iter(tokens))
+        else:
+            die("several tokens configured; pass --as NAME or set TICKETX_AS (%s)." % ", ".join(tokens))
+    if name not in tokens:
+        die("no token named %r in %s" % (name, CONFIG_PATH))
+    return cfg["url"].rstrip("/"), tokens[name]
+
+
+def call(cfg, method, path, body=None, raw=False):
+    url, token = cfg
+    data = json.dumps(body).encode() if body is not None else None
+    request = urllib.request.Request(url + "/api/v1" + path, data=data, method=method)
+    request.add_header("Authorization", "Bearer " + token)
+    if data is not None:
+        request.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            payload = response.read().decode("utf-8")
+    except urllib.error.HTTPError as error:
+        try:
+            message = json.loads(error.read().decode()).get("error", error.reason)
+        except Exception:
+            message = error.reason
+        die("HTTP %d: %s" % (error.code, message))
+    except (urllib.error.URLError, OSError) as error:
+        die("cannot reach %s (%s). Is Tailscale connected?" % (url, getattr(error, "reason", error)))
+    return payload if raw else json.loads(payload)
+
+
+def query(**params):
+    from urllib.parse import urlencode
+    clean = {k: v for k, v in params.items() if v not in (None, "")}
+    return ("?" + urlencode(clean)) if clean else ""
+
+
+def read_text(value, file_value=None):
+    if file_value:
+        return sys.stdin.read() if file_value == "-" else open(file_value).read()
+    if value == "-":
+        return sys.stdin.read()
+    return value
+
+
+def line(t):
+    due = "  due " + t["due_date"] if t["due_date"] else ""
+    return "#%-4d %-22s %-6s %-9s %s%s" % (t["id"], t["status"], t["priority"], t["project"] or "-", t["title"], due)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--as", dest="actor", help="token name from the config (claude-code, codex, ...)")
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    c = sub.add_parser("context")
+    c.add_argument("--project"); c.add_argument("--status"); c.add_argument("--comments", type=int)
+    c.add_argument("--write", metavar="FILE")
+    sub.add_parser("projects")
+    ls = sub.add_parser("list")
+    ls.add_argument("--project"); ls.add_argument("--status"); ls.add_argument("-q")
+    sh = sub.add_parser("show"); sh.add_argument("id", type=int)
+    ad = sub.add_parser("add")
+    ad.add_argument("--project", required=True); ad.add_argument("--title", required=True)
+    ad.add_argument("--desc", default=""); ad.add_argument("--desc-file")
+    ad.add_argument("--priority", default="medium"); ad.add_argument("--due")
+    cm = sub.add_parser("comment"); cm.add_argument("id", type=int); cm.add_argument("text")
+    st = sub.add_parser("status"); st.add_argument("id", type=int); st.add_argument("status")
+    ed = sub.add_parser("edit"); ed.add_argument("id", type=int)
+    ed.add_argument("--title"); ed.add_argument("--desc"); ed.add_argument("--priority")
+    ed.add_argument("--due"); ed.add_argument("--project")
+    sub.add_parser("whoami")
+    args = parser.parse_args()
+    cfg = load_config(args.actor)
+
+    if args.cmd == "context":
+        text = call(cfg, "GET", "/context.md" + query(project=args.project, status=args.status,
+                                                       comments=args.comments), raw=True)
+        if args.write:
+            path = os.path.expanduser(args.write)
+            os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+            with open(path, "w") as handle:
+                handle.write(text)
+            print("wrote %s (%d bytes)" % (path, len(text)))
+        else:
+            sys.stdout.write(text)
+    elif args.cmd == "projects":
+        for p in call(cfg, "GET", "/projects"):
+            print("%-24s %d open" % (p["name"], p["open_tickets"]))
+    elif args.cmd == "list":
+        for t in call(cfg, "GET", "/tickets" + query(project=args.project, status=args.status, q=args.q)):
+            print(line(t))
+    elif args.cmd == "show":
+        t = call(cfg, "GET", "/tickets/%d" % args.id)
+        print(line(t)); print("created %s by %s, updated %s" % (t["created_at"], t["created_by"], t["updated_at"]))
+        print("\n" + t["description"] + "\n")
+        for cmt in t["comments"]:
+            print("--- %s %s\n%s\n" % (cmt["created_at"][:16], cmt["author"], cmt["comment"]))
+    elif args.cmd == "add":
+        body = {"project": args.project, "title": args.title, "priority": args.priority,
+                "description": read_text(args.desc, args.desc_file)}
+        if args.due:
+            body["due_date"] = args.due
+        t = call(cfg, "POST", "/tickets", body)
+        print("created #%d: %s" % (t["id"], t["title"]))
+    elif args.cmd == "comment":
+        call(cfg, "POST", "/tickets/%d/comments" % args.id, {"comment": read_text(args.text)})
+        print("comment added to #%d" % args.id)
+    elif args.cmd == "status":
+        t = call(cfg, "PATCH", "/tickets/%d" % args.id, {"status": args.status})
+        print("#%d -> %s" % (t["id"], t["status"]))
+    elif args.cmd == "edit":
+        body = {}
+        for key, value in (("title", args.title), ("description", args.desc), ("priority", args.priority),
+                           ("project", args.project)):
+            if value is not None:
+                body[key] = value
+        if args.due is not None:
+            body["due_date"] = None if args.due == "none" else args.due
+        t = call(cfg, "PATCH", "/tickets/%d" % args.id, body)
+        print(line(t))
+    elif args.cmd == "whoami":
+        print(json.dumps(call(cfg, "GET", "/health")))
+
+
+if __name__ == "__main__":
+    main()

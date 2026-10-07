@@ -276,6 +276,21 @@ class Database:
             )
         """)
         
+        # API tokens (only the SHA-256 hash of a token is stored)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS api_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                token_hash TEXT UNIQUE NOT NULL,
+                scope TEXT NOT NULL DEFAULT 'write',
+                created_at TEXT DEFAULT (datetime('now', 'localtime')),
+                last_used_at TEXT,
+                revoked_at TEXT,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            )
+        """)
+
         conn.commit()
 
         # Migration: Add columns if they don't exist
