@@ -49,6 +49,16 @@ There is deliberately no delete endpoint, and API actions do not send email noti
 
 Returns open tickets grouped by project (high priority first), with description, due date and the last N comments (default 3, max 20). This is what an agent reads at the start of work.
 
+## Deleting tickets (server only)
+
+The API has no delete endpoint on purpose. Tickets are removed on the server with `manage_tickets.py`, which is a dry run unless `--yes` is given and writes a database backup first:
+
+```bash
+python manage_tickets.py list   --project Intersocks
+python manage_tickets.py delete --project Intersocks                 # dry run
+python manage_tickets.py delete --project Intersocks --drop-project --yes
+```
+
 ## Command line client
 
 `tools/ticketx` is a single-file Python 3.8+ client without dependencies.
