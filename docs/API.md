@@ -39,6 +39,8 @@ Tickets created through the API are **assigned to the token's user** and start a
 
 **Duplicate protection.** `POST /tickets` compares the new title with every visible open ticket and with tickets closed in the last 14 days (case, diacritics and punctuation are ignored; word order and sub-titles are tolerated). On a likely duplicate it answers `409` with the candidates (`id`, `title`, `status`, `project`, `similarity`) and creates nothing. Send `"force": true` only when it really is a different task. The check runs on the server, so it works no matter which chat or tool is creating the ticket. `GET /tickets?q=a+b` finds tickets containing **all** words in title or description.
 
+**Recording past work.** `POST /tickets` accepts `created_at` and `closed_at` (`YYYY-MM-DD` or `YYYY-MM-DD HH:MM`; a date alone means 12:00; future dates are rejected) and comments accept `created_at`. `closed_at` also sets status `closed`. The activity log marks such tickets as `backdated`. CLI: `ticketx add --created 2026-09-23 --closed 2026-09-24 ...` and `ticketx comment ID "..." --date 2026-09-23`.
+
 A *project* is a TicketX category; a project that does not exist yet is created on first use. Statuses: `new`, `assigned`, `in_progress`, `awaiting_confirmation`, `closed`. Priorities: `low`, `medium`, `high`. Dates: `YYYY-MM-DD`.
 
 There is deliberately no delete endpoint, and API actions do not send email notifications.

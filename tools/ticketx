@@ -14,9 +14,10 @@ Commands:
   list    [--project P] [--status open|all|STATUS] [-q TEXT]
   show ID
   add --project P --title T [--desc TEXT | --desc-file FILE|-] [--priority low|medium|high] [--due YYYY-MM-DD] [--force]
+      [--created DATE] [--closed DATE]   (record past work with its real date)
       (refuses with exit code 3 and lists the tickets when a similar one already exists)
   find WORDS...               search open and closed tickets (all words must match)
-  comment ID TEXT            (TEXT may be "-" to read stdin)
+  comment ID TEXT [--date DATE]   (TEXT may be "-" to read stdin)
   status ID new|assigned|in_progress|awaiting_confirmation|closed
   edit ID [--title T] [--desc TEXT] [--priority P] [--due D|none] [--project P]
   whoami
@@ -124,7 +125,10 @@ def main():
     ad.add_argument("--desc", default=""); ad.add_argument("--desc-file")
     ad.add_argument("--priority", default="medium"); ad.add_argument("--due")
     ad.add_argument("--force", action="store_true", help="create even if similar tickets exist")
+    ad.add_argument("--created", metavar="DATE", help="record a past ticket: YYYY-MM-DD[ HH:MM]")
+    ad.add_argument("--closed", metavar="DATE", help="past ticket that is finished: sets status closed and the date")
     cm = sub.add_parser("comment"); cm.add_argument("id", type=int); cm.add_argument("text")
+    cm.add_argument("--date", metavar="DATE", help="record a past comment: YYYY-MM-DD[ HH:MM]")
     st = sub.add_parser("status"); st.add_argument("id", type=int); st.add_argument("status")
     ed = sub.add_parser("edit"); ed.add_argument("id", type=int)
     ed.add_argument("--title"); ed.add_argument("--desc"); ed.add_argument("--priority")
@@ -164,10 +168,17 @@ def main():
             body["due_date"] = args.due
         if args.force:
             body["force"] = True
+        if args.created:
+            body["created_at"] = args.created
+        if args.closed:
+            body["closed_at"] = args.closed
         t = call(cfg, "POST", "/tickets", body)
         print("created #%d: %s" % (t["id"], t["title"]))
     elif args.cmd == "comment":
-        call(cfg, "POST", "/tickets/%d/comments" % args.id, {"comment": read_text(args.text)})
+        body = {"comment": read_text(args.text)}
+        if args.date:
+            body["created_at"] = args.date
+        call(cfg, "POST", "/tickets/%d/comments" % args.id, body)
         print("comment added to #%d" % args.id)
     elif args.cmd == "status":
         t = call(cfg, "PATCH", "/tickets/%d" % args.id, {"status": args.status})
