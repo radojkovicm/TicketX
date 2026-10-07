@@ -114,6 +114,10 @@ For Linux or macOS, activate the environment with `source .venv/bin/activate`; t
 
 The database, `.env`, logs and uploaded files are intentionally excluded from Git because they may contain credentials or personal data.
 
+## API and AI agents
+
+A bearer-token JSON API (`/api/v1`), a one-file Markdown state export (`/api/v1/context.md`) and a command line client (`tools/ticketx`) let scripts and AI agents read, create, comment on and update tickets. Comments are prefixed with the token name so the history shows who did what. See [docs/API.md](docs/API.md).
+
 ## Authorization model
 
 - Administrators can view and manage all tickets.
