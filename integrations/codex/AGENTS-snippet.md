@@ -20,3 +20,4 @@ Never start this on your own. When asked:
 6. Assignment is automatic (every ticket is assigned to the user); do not try to assign anyone else.
 7. Exit code 3 = likely duplicate: comment on the existing ticket instead of using `--force`, unless the task is really different.
 8. End with a summary: created N, commented M, skipped K (with reasons).
+9. Work for the employer (Intersocks, Business Central, Jira) does NOT belong in TicketX: the user keeps it in Jira. Never add or import such items; skip them and tell the user.

@@ -23,6 +23,7 @@ Kad korisnik pita "kada smo uradili X" / "šta smo radili": ne pogađaj, pogleda
 
 ## Rules
 
+- Posao (Intersocks, Business Central, Jira) NE ide u TicketX: to korisnik vodi u Jiri. Ne upisuj ni ne uvozi te stavke; ako ih naidjes, preskoci i javi korisniku.
 - Do not write secrets, passwords, tokens or personal data into tickets or comments.
 - Do not close a ticket on your own; use `awaiting_confirmation`.
 - Keep descriptions factual; use Serbian or English like the user does.
