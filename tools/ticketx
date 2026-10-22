@@ -96,6 +96,7 @@ def query(**params):
     return ("?" + urlencode(clean)) if clean else ""
 
 
+
 def read_text(value, file_value=None):
     if file_value:
         return sys.stdin.read() if file_value == "-" else open(file_value).read()
